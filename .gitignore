@@ -1,0 +1,20 @@
+﻿venv/
+.venv/
+__pycache__/
+*.pyc
+.env
+.env.*
+*.log
+
+# Credenciales Google
+credentials.json
+token.pickle
+
+# Datos/documentos locales
+guardados/
+documento_generado.docx
+temp_*.docx
+temp_*.pdf
+
+# Archivos temporales
+temp_*
