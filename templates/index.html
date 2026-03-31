@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>JurisFlow</title>
+
+    <style>
+        body {
+            background-color: #6797af;
+            color: #202020;
+            font-family: Arial;
+        }
+
+        .panel {
+            background:white;
+            padding:10px;
+            border-radius:8px;
+            box-shadow:0 2px 6px rgba(0,0,0,0.1);
+        }
+
+        /* 🔥 INPUT + BOTÓN */
+        .campo {
+            display:flex;
+            align-items:center;
+            gap:5px;
+            margin-bottom:8px;
+        }
+
+        .campo input {
+            flex:1;
+            padding:6px;
+            border:1px solid #D0D0D0;
+            border-radius:4px;
+        }
+
+        .btn-rojo {
+            width:20px;
+            height:20px;
+            background:#8B0000;
+            border:none;
+            cursor:pointer;
+        }
+
+    </style>
+</head>
+
+<body>
+
+<h1>JurisFlow 🔥</h1>
+
+<button onclick="abrirConfig()">⚙ Configuración IA</button>
+
+<form id="form">
+    <input type="file" id="file">
+    <button type="submit">Subir</button>
+</form>
+
+<div style="display:flex; gap:20px; margin-top:20px;">
+
+    <!-- IZQUIERDA -->
+    <div style="width:65%;" class="panel">
+        <h3>Documento</h3>
+
+
+        <div id="editor"
+            contenteditable="true"
+            style="
+                border:1px solid #ddd;
+                padding:15px;
+                height:400px;
+                overflow-y:scroll;
+                white-space: pre-wrap;
+                font-family: monospace;
+                background:white;
+            ">
+        </div>
+    <div style="
+        margin-top:10px;
+        display:flex;
+        justify-content:space-between;
+        align-items:center;
+    ">
+
+        <!-- IZQUIERDA -->
+        <button onclick="generarDocumento()" 
+        style="
+            background:green;
+            color:white;
+            padding:10px;
+            border:none;
+            border-radius:5px;
+        ">
+            🟢 Generar Documento
+        </button>
+
+    </div>
+
+</div>
+    <!-- DERECHA -->
+    <div style="width:35%;" class="panel">
+        <h3>Entrys</h3>
+        <div class="campo">
+            <button class="btn-rojo" data-key="tipo_juicio"></button>
+            <input id="tipo_juicio" class="entry-input" placeholder="Tipo de juicio">
+        </div>
+
+    <div id="bloque-actor">
+
+        <h4>Actor</h4>
+        <div class="campo">
+            <button class="btn-rojo" data-key="actor" onmousedown="event.preventDefault()"></button>
+            <input id="actor" class="entry-input" placeholder="Nombre completo">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="cedula" onmousedown="event.preventDefault()"></button>
+            <input id="cedula" class="entry-input" placeholder="Cédula">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="age" onmousedown="event.preventDefault()"></button>
+            <input id="age" class="entry-input" placeholder="Edad">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="civil" onmousedown="event.preventDefault()"></button>
+            <input id="civil" class="entry-input" placeholder="Estado civil">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="profesion" onmousedown="event.preventDefault()"></button>
+            <input id="profesion" class="entry-input" placeholder="Profesión">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="ciudadania" onmousedown="event.preventDefault()"></button>
+            <input id="ciudadania" class="entry-input" placeholder="Ciudadanía">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="email" onmousedown="event.preventDefault()"></button>
+            <input id="email" class="entry-input" placeholder="Correo electrónico">
+        </div>
+
+        <h4>Dirección del Actor</h4>
+
+        <div class="campo">
+            <button class="btn-rojo"></button>
+            <input id="parroquia_actor" class="entry-input" placeholder="Parroquia">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo"></button>
+            <input id="barrio_actor" class="entry-input" placeholder="Barrio">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo"></button>
+            <input id="calle_principal_actor" class="entry-input" placeholder="Calle principal">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo"></button>
+            <input id="calle_secundaria_actor" class="entry-input" placeholder="Calle secundaria">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo"></button>
+            <input id="numero_casa_actor" class="entry-input" placeholder="Número de casa">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo"></button>
+            <input id="codigo_postal_actor" class="entry-input" placeholder="Código postal">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo"></button>
+            <input id="telefono_actor" class="entry-input" placeholder="Contacto">
+        </div>
+    </div>
+
+    <div id="bloque-demandado">
+        <h4>Demandado</h4>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="nombre_demandado"></button>
+            <input id="nombre_demandado" class="entry-input" placeholder="Nombre demandado">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="cedula_demandado"></button>
+            <input id="cedula_demandado" class="entry-input" placeholder="Cédula demandado">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="email_demandado"></button>
+            <input id="email_demandado" class="entry-input" placeholder="Email demandado">
+        </div>
+
+        <h4>Dirección del Demandado</h4>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="parroquia_demandado"></button>
+            <input id="parroquia_demandado" class="entry-input" placeholder="Parroquia">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="barrio_demandado"></button>
+            <input id="barrio_demandado" class="entry-input" placeholder="Barrio">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="calle_principal_demandado"></button>
+            <input id="calle_principal_demandado" class="entry-input" placeholder="Calle principal">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="calle_secundaria_demandado"></button>
+            <input id="calle_secundaria_demandado" class="entry-input" placeholder="Calle secundaria">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="numero_casa_demandado"></button>
+            <input id="numero_casa_demandado" class="entry-input" placeholder="Número de casa">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="codigo_postal_demandado"></button>
+            <input id="codigo_postal_demandado" class="entry-input" placeholder="Código postal">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="telefono_demandado"></button>
+            <input id="telefono_demandado" class="entry-input" placeholder="Teléfono">
+        </div>
+    </div>
+
+
+    <!-- BLOQUE DE TESTIGOS -->
+    <div id="bloque-testigo1">
+        <h4>Testigo 1</h4>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="nombre_testigo1"></button>
+            <input id="nombre_testigo1" class="entry-input" placeholder="Nombre">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="cedula_testigo1"></button>
+            <input id="cedula_testigo1" class="entry-input" placeholder="Cédula">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="email_testigo1"></button>
+            <input id="email_testigo1" class="entry-input" placeholder="Email">
+        </div>
+
+        <h4>Dirección del Testigo</h4>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="direccion_testigo1"></button>
+            <input id="direccion_testigo1" class="entry-input" placeholder="Dirección">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="parroquia_testigo1"></button>
+            <input id="parroquia_testigo1" class="entry-input" placeholder="Parroquia">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="ciudad_testigo1"></button>
+            <input id="ciudad_testigo1" class="entry-input" placeholder="Ciudad">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="objeto_testigo1"></button>
+            <input id="objeto_testigo1" class="entry-input" placeholder="Objeto del testimonio">
+        </div>
+    </div>
+
+    <div id="bloque-testigo2">
+        <h4>Testigo 2</h4>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="nombre_testigo2"></button>
+            <input id="nombre_testigo2" class="entry-input" placeholder="Nombre">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="cedula_testigo2"></button>
+            <input id="cedula_testigo2" class="entry-input" placeholder="Cédula">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="email_testigo2"></button>
+            <input id="email_testigo2" class="entry-input" placeholder="Email">
+        </div>
+
+        <h4>Dirección del Testigo</h4>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="direccion_testigo2"></button>
+            <input id="direccion_testigo2" class="entry-input" placeholder="Dirección">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="parroquia_testigo2"></button>
+            <input id="parroquia_testigo2" class="entry-input" placeholder="Parroquia">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="ciudad_testigo2"></button>
+            <input id="ciudad_testigo2" class="entry-input" placeholder="Ciudad">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="objeto_testigo2"></button>
+            <input id="objeto_testigo2" class="entry-input" placeholder="Objeto del testimonio">
+        </div>
+    </div>
+
+
+
+
+    <div id="bloque-testigo3">
+        <h4>Testigo 3</h4>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="nombre_testigo3"></button>
+            <input id="nombre_testigo3" class="entry-input" placeholder="Nombre">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="cedula_testigo3"></button>
+            <input id="cedula_testigo3" class="entry-input" placeholder="Cédula">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="email_testigo3"></button>
+            <input id="email_testigo3" class="entry-input" placeholder="Email">
+        </div>
+
+        <h4>Dirección del Testigo</h4>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="direccion_testigo3"></button>
+            <input id="direccion_testigo3" class="entry-input" placeholder="Dirección">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="parroquia_testigo3"></button>
+            <input id="parroquia_testigo3" class="entry-input" placeholder="Parroquia">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="ciudad_testigo3"></button>
+            <input id="ciudad_testigo3" class="entry-input" placeholder="Ciudad">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="objeto_testigo3"></button>
+            <input id="objeto_testigo3" class="entry-input" placeholder="Objeto del testimonio">
+        </div>
+    </div>
+
+    <div id="bloque-testigo4">
+        <h4>Testigo 4</h4>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="nombre_testigo4"></button>
+            <input id="nombre_testigo4" class="entry-input" placeholder="Nombre">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="cedula_testigo4"></button>
+            <input id="cedula_testigo4" class="entry-input" placeholder="Cédula">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="email_testigo4"></button>
+            <input id="email_testigo4" class="entry-input" placeholder="Email">
+        </div>
+
+        <h4>Dirección del Testigo</h4>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="direccion_testigo4"></button>
+            <input id="direccion_testigo4" class="entry-input" placeholder="Dirección">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="parroquia_testigo4"></button>
+            <input id="parroquia_testigo4" class="entry-input" placeholder="Parroquia">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="ciudad_testigo4"></button>
+            <input id="ciudad_testigo4" class="entry-input" placeholder="Ciudad">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="objeto_testigo4"></button>
+            <input id="objeto_testigo4" class="entry-input" placeholder="Objeto del testimonio">
+        </div>
+    </div>
+
+    <div id="bloque-testigo5">
+        <h4>Testigo 5</h4>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="nombre_testigo5"></button>
+            <input id="nombre_testigo5" class="entry-input" placeholder="Nombre">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="cedula_testigo5"></button>
+            <input id="cedula_testigo5" class="entry-input" placeholder="Cédula">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="email_testigo5"></button>
+            <input id="email_testigo5" class="entry-input" placeholder="Email">
+        </div>
+
+        <h4>Dirección del Testigo</h4>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="direccion_testigo5"></button>
+            <input id="direccion_testigo5" class="entry-input" placeholder="Dirección">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="parroquia_testigo5"></button>
+            <input id="parroquia_testigo5" class="entry-input" placeholder="Parroquia">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="ciudad_testigo5"></button>
+            <input id="ciudad_testigo5" class="entry-input" placeholder="Ciudad">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="objeto_testigo5"></button>
+            <input id="objeto_testigo5" class="entry-input" placeholder="Objeto del testimonio">
+        </div>
+    </div>
+
+
+        <!-- 🔥 BOTONES DE NAVEGACIÓN -->
+        <div style="
+            margin-top:15px;
+            display:flex;
+            justify-content:flex-end;
+            gap:10px;
+        ">
+            <button onclick="anterior()">⬅ Anterior</button>
+            <button onclick="siguiente()">Siguiente ➡</button>
+        </div>
+    </div>
+    
+
+
+<script src="static/script.js"></script>
+
+
+<!-- CONFIG -->
+<div id="configPanel" style="
+    display:none;
+    position:fixed;
+    top:50%;
+    left:50%;
+    transform:translate(-50%, -50%);
+    background:white;
+    padding:20px;
+    border:1px solid #ccc;
+    box-shadow:0 5px 15px rgba(0,0,0,0.3);
+    width:400px;
+    z-index:1000;
+">
+
+<h3>Configurar Prompt IA</h3>
+
+<textarea id="promptIA" style="width:100%; height:150px;"></textarea>
+
+<br><br>
+
+<button onclick="guardarPrompt()">Guardar</button>
+<button onclick="cerrarConfig()">Cerrar</button>
+
+</div>
+
+</body>
+</html>
