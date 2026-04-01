@@ -15,19 +15,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const editor = document.getElementById("editor");
 
-    cargarEstado();
+    // 🔥 cargar HTML real (con spans)
+    cargarEstadoEditor();
 
+    // 🔥 guardar TODO al editar
     editor.addEventListener("input", () => {
-        textoOriginal = editor.innerText;
+        guardarEstadoEditor();
+        guardarEnServidor();
         guardarEstado();
     });
 
-    // 🔥 NUEVO CÓDIGO AQUÍ
+    // 🔥 sincronizar spans → inputs
     editor.addEventListener("input", (e) => {
 
         const span = e.target;
 
-        // solo si es un span con data-key
         if (!span.dataset || !span.dataset.key) return;
 
         const key = span.dataset.key;
@@ -213,6 +215,25 @@ document.getElementById("form").addEventListener("submit", async (e) => {
 
         // 🔥 obtener datos
         let texto = data.texto || "";
+
+        // 🔥 intentar cargar versión guardada
+        const nombreArchivo = file.name.replace(".docx", "").replace(/\s+/g, "_");
+
+        const resHTML = await fetch(`/cargar-html/${nombreArchivo}`);
+        const dataHTML = await resHTML.json();
+
+        if (dataHTML.html) {
+            console.log("📂 Cargando versión guardada");
+
+            document.getElementById("editor").innerHTML = dataHTML.html;
+            // 🔥 reconstruir inputs desde spans
+            document.querySelectorAll("[data-key]").forEach(span => {
+                const key = span.dataset.key;
+                actualizarInputDesdeSpans(key);
+            });
+
+            return; // 🔥 IMPORTANTE: detener flujo normal
+        }
 
         const partes = dividirPartes(texto);
 
@@ -407,9 +428,21 @@ document.querySelectorAll(".entry-input").forEach(input => {
         return;
     }
 
-    // 🔵 RESTO NORMAL (no tocar)
+    // 🔴 si se borra → quitar resaltado pero mantener texto
     if (!nuevoValor.trim()) {
-        spans.forEach(span => span.replaceWith(""));
+
+        if (!spans.length) return;
+
+        spans.forEach(span => {
+            span.textContent = ""; // 🔥 NO borrar el span
+        });
+
+
+        // 🔥 guardar estado correctamente
+        guardarEstado();
+        guardarEstadoEditor();
+        guardarEnServidor();
+
         return;
     }
 
@@ -417,7 +450,9 @@ document.querySelectorAll(".entry-input").forEach(input => {
         span.textContent = nuevoValor;
     });
 
-    guardarEstado();
+    //resaltarGlobal();
+    guardarEstadoEditor();
+    guardarEnServidor()
 });
 });
 
@@ -466,6 +501,11 @@ function guardarEstado() {
     localStorage.setItem("jurisflow_estado", JSON.stringify(estado));
 }
 
+function guardarEstadoEditor() {
+    const editor = document.getElementById("editor");
+
+    localStorage.setItem("jurisflow_html", editor.innerHTML);
+}
 
 function actualizarInputDesdeSpans(key) {
 
@@ -528,18 +568,6 @@ function resaltarSeleccion() {
     range.surroundContents(span);
 }
 
-document.addEventListener("DOMContentLoaded", () => {
-
-    const editor = document.getElementById("editor");
-
-    cargarEstado();
-
-    editor.addEventListener("input", () => {
-        textoOriginal = editor.innerText;
-        guardarEstado();
-    });
-
-});
 
 function limpiarEstado() {
     localStorage.removeItem("jurisflow_estado");
@@ -633,17 +661,119 @@ document.addEventListener("click", function(e) {
 
     const key = e.target.dataset.key;
     const input = document.getElementById(key);
+    const editor = document.getElementById("editor");
+
     const selection = window.getSelection();
+    const textoSeleccionado = selection.toString().trim();
 
-    if (!selection.toString().trim()) return;
+    // 🔒 SOLO buscar dentro del editor
+    const spans = editor.querySelectorAll(`[data-key="${key}"]`);
 
-    const valor = selection.toString();
-    input.value = valor;
+    // 🟢 1. SI HAY SELECCIÓN → resaltar
+    if (textoSeleccionado) {
+        input.value = textoSeleccionado;
+        resaltarGlobal();
+        guardarEstado();
+        guardarEstadoEditor();
+        guardarEnServidor();
+        return;
+    }
 
-    resaltarGlobal();
+    // 🔴 2. SI NO HAY SELECCIÓN Y NO HAY SPANS → NO HACER NADA
+    if (spans.length === 0) {
+        return;
+    }
+
+    // 🔴 3. SI YA ESTÁ VACÍO → NO HACER NADA (evita tercer click)
+    if (!input.value.trim()) {
+        return;
+    }
+
+    // 🔥 4. BORRAR SOLO UNA VEZ
+    spans.forEach(span => {
+        const texto = span.textContent;
+        span.remove();
+    });
+
+    input.value = "";
+
     guardarEstado();
+    guardarEstadoEditor();
+    guardarEnServidor();
 });
 
+async function guardarEnServidor() {
+    const html = document.getElementById("editor").innerHTML;
+
+    const nombre = document.getElementById("actor")?.value || "documento";
+
+    await fetch("/guardar-html", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            texto: html,
+            nombre: nombre.replace(/\s+/g, "_")
+        })
+    });
+}
+
+async function descargarDocx() {
+    try {
+        const texto = document.getElementById("editor").innerText;
+
+        const response = await fetch("/exportar-docx", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ texto })
+        });
+
+        if (!response.ok) {
+            alert("Error al generar el documento");
+            return;
+        }
+
+        const blob = await response.blob();
+
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        const nombre = document.getElementById("actor")?.value || "";
+        const tipo = document.getElementById("tipo_juicio")?.value || "";
+
+        // limpiar espacios y caracteres raros
+        function limpiar(texto) {
+            return texto
+                .trim()
+                .replace(/\s+/g, "_")
+                .replace(/[^\w\-]/g, "");
+        }
+
+        let nombreArchivo = "";
+
+        if (nombre && tipo) {
+            nombreArchivo = `${limpiar(nombre)}_${limpiar(tipo)}.docx`;
+        } else if (nombre) {
+            nombreArchivo = `${limpiar(nombre)}.docx`;
+        } else if (tipo) {
+            nombreArchivo = `${limpiar(tipo)}.docx`;
+        } else {
+            nombreArchivo = "documento.docx";
+        }
+
+        a.download = nombreArchivo;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+
+    } catch (error) {
+        console.error("Error:", error);
+        alert("Error al descargar DOCX");
+    }
+}
 
 // 🔥 GENERAR DOCUMENTO
 function generarDocumento() {
