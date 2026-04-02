@@ -1,4 +1,5 @@
 let textoBase = "";
+let documentoRestaurado = false;
 
 window.addEventListener("load", () => {
 
@@ -146,6 +147,15 @@ function limpiarNombre(nombre) {
         .join(" ");
 }
 
+function normalizar(texto) {
+    return texto
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9\s]/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+}
 function resaltarNombreFlexible(html, key, nombre, color) {
     if (!nombre) return html;
 
@@ -178,174 +188,244 @@ async function extraerDireccionConIA(texto) {
     const data = await response.json();
     return data;
 }
-// 🔥 SUBIR ARCHIVO
-document.getElementById("form").addEventListener("submit", async (e) => {
-    e.preventDefault();
 
-    const fileInput = document.getElementById("file");
-    const file = fileInput.files[0];
+// 🔥 NORMALIZACIÓN GLOBAL
+function normalizar(texto) {
+    return texto
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9\s]/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+}
 
-    if (!file) {
-        alert("Selecciona un archivo");
-        return;
-    }
-
-    const formData = new FormData();
-    formData.append("file", file);
-
-    try {
-        const response = await fetch("/upload", {
-            method: "POST",
-            body: formData
-        });
-
-        if (!response.ok) {
-            throw new Error("Error en servidor");
-        }
-
-        const text = await response.text();
-
-        let data = {};
-
-        try {
-            data = JSON.parse(text);
-        } catch (e) {
-            console.warn("⚠️ JSON inválido, pero continuo:", text);
-        }
-
-        // 🔥 obtener datos
-        let texto = data.texto || "";
-
-        // 🔥 intentar cargar versión guardada
-        const nombreArchivo = file.name.replace(".docx", "").replace(/\s+/g, "_");
-
-        const resHTML = await fetch(`/cargar-html/${nombreArchivo}`);
-        const dataHTML = await resHTML.json();
-
-        if (dataHTML.html) {
-            console.log("📂 Cargando versión guardada");
-
-            document.getElementById("editor").innerHTML = dataHTML.html;
-            // 🔥 reconstruir inputs desde spans
-            document.querySelectorAll("[data-key]").forEach(span => {
-                const key = span.dataset.key;
-                actualizarInputDesdeSpans(key);
-            });
-
-            return; // 🔥 IMPORTANTE: detener flujo normal
-        }
-
-        const partes = dividirPartes(texto);
-
-        const actorDatos = detectarCampos(partes.actor);
-        const demandadoDatos = detectarCamposDemandado(partes.demandado);
-
-        let datos = {
-            ...actorDatos,
-            ...demandadoDatos,
-            ...data.datos
-        };
-
-        const necesitaIA = !datos.calle_principal_actor && !datos.parroquia_actor;
-
-        if (necesitaIA) {
-            console.log("🤖 Usando IA para dirección...");
-
-            const datosIA = await extraerDireccionConIA(texto);
-
-            console.log("🤖 IA respondió:", datosIA);
-
-            datos = { ...datos, ...datosIA };
-        }
-
-        console.log("🔥 DATOS IA:", data.datos);
-
-        // 🔥 función segura
-        function setValor(id, valor) {
-            const el = document.getElementById(id);
-            if (el) {
-                el.value = valor || "";
-            }
-        }
-
-
-        const datosIA = data.datos || {};
-
-        for (let i = 1; i <= 5; i++) {
-
-            setValor(`nombre_testigo${i}`, datosIA[`nombre_testigo${i}`]);
-            setValor(`cedula_testigo${i}`, datosIA[`cedula_testigo${i}`]);
-            setValor(`direccion_testigo${i}`, datosIA[`direccion_testigo${i}`]);
-            setValor(`parroquia_testigo${i}`, datosIA[`parroquia_testigo${i}`]);
-            setValor(`ciudad_testigo${i}`, datosIA[`ciudad_testigo${i}`]);
-            setValor(`email_testigo${i}`, datosIA[`email_testigo${i}`]);
-            setValor(`objeto_testigo${i}`, datosIA[`objeto_testigo${i}`]);
-        }
-
-        // 🔵 ACTOR
-        setValor("actor", limpiarNombre(datosIA.actor?.nombre));
-        setValor("cedula", datosIA.actor?.cedula);
-        setValor("age", datosIA.actor?.edad);
-        setValor("civil", datosIA.actor?.estado_civil);
-        setValor("profesion", datosIA.actor?.profesion);
-        setValor("ciudadania", datosIA.actor?.ciudadania);
-        setValor("email", datosIA.actor?.email);
-        setValor("telefono_actor", datosIA.actor?.telefono);
-
-        setValor("parroquia_actor", datosIA.actor?.direccion?.parroquia);
-        setValor("barrio_actor", datosIA.actor?.direccion?.barrio);
-        setValor("calle_principal_actor", datosIA.actor?.direccion?.calle_principal);
-        setValor("calle_secundaria_actor", datosIA.actor?.direccion?.calle_secundaria);
-        setValor("numero_casa_actor", datosIA.actor?.direccion?.numero_casa);
-        setValor("codigo_postal_actor", datosIA.actor?.direccion?.codigo_postal);
-
-        // 🔴 DEMANDADO
-        setValor("nombre_demandado", datosIA.demandado?.nombre);
-        setValor("cedula_demandado", datosIA.demandado?.cedula);
-        setValor("email_demandado", datosIA.demandado?.email);
-        setValor("telefono_demandado", datosIA.demandado?.telefono);
-
-        setValor("parroquia_demandado", datosIA.demandado?.direccion?.parroquia);
-        setValor("barrio_demandado", datosIA.demandado?.direccion?.barrio);
-        setValor("calle_principal_demandado", datosIA.demandado?.direccion?.calle_principal);
-        setValor("calle_secundaria_demandado", datosIA.demandado?.direccion?.calle_secundaria);
-        setValor("numero_casa_demandado", datosIA.demandado?.direccion?.numero_casa);
-        setValor("codigo_postal_demandado", datosIA.demandado?.direccion?.codigo_postal);
-
-        // 🟢 GENERAL
-        setValor("tipo_juicio", datosIA.tipo_juicio); 
+// 🔥 RESALTADO DOM SEGURO
+function resaltarCoincidenciasDOM(key, valor, color) {
 
         const editor = document.getElementById("editor");
+        if (!valor) return;
 
-        // 🔥 limpiar HTML
-        texto = texto.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        const palabras = normalizar(valor).split(" ");
 
-        // 🔥 PRIMERO insertar en editor
-        editor.innerHTML = texto;
+        const walker = document.createTreeWalker(
+            editor,
+            NodeFilter.SHOW_TEXT,
+            null,
+            false
+        );
 
-        // 🔥 luego guardar base
-        textoBase = texto;
+        let nodo;
 
-        // 🔥 ahora sí resaltar
-        resaltarGlobal();
-        guardarEstado();
-        
-        function normalizar(texto) {
-            return texto
-                .toLowerCase()
-                .normalize("NFD")
-                .replace(/[\u0300-\u036f]/g, "")
-                .replace(/\s+/g, " ")
-                .trim();
+        while ((nodo = walker.nextNode())) {
+
+            // 🚫 evitar tocar spans existentes
+            if (nodo.parentNode.closest("span[data-key]")) continue;
+
+            const textoOriginal = nodo.nodeValue;
+            const textoNormalizado = normalizar(textoOriginal);
+
+            let hayMatch = false;
+
+            for (let p of palabras) {
+                if (p.length >= 3 && textoNormalizado.includes(p)) {
+                    hayMatch = true;
+                    break;
+                }
+            }
+
+            if (!hayMatch) continue;
+
+            let partesFinales = [textoOriginal];
+
+            palabras.forEach(p => {
+                if (p.length < 3) return;
+
+                const nuevasPartes = [];
+
+                partesFinales.forEach(parte => {
+
+                    if (typeof parte !== "string") {
+                        nuevasPartes.push(parte);
+                        return;
+                    }
+
+                    const regex = new RegExp(`(${p})`, "gi");
+
+                    if (!regex.test(normalizar(parte))) {
+                        nuevasPartes.push(parte);
+                        return;
+                    }
+
+                    const split = parte.split(regex);
+
+                    split.forEach(s => {
+                        if (normalizar(s) === p) {
+
+                            const span = document.createElement("span");
+                            span.className = "var";
+                            span.dataset.key = key;
+                            span.style.background = color;
+                            span.textContent = s;
+
+                            nuevasPartes.push(span);
+
+                        } else {
+                            nuevasPartes.push(s);
+                        }
+                    });
+                });
+
+                partesFinales = nuevasPartes;
+            });
+
+            const fragment = document.createDocumentFragment();
+
+            partesFinales.forEach(parte => {
+                if (typeof parte === "string") {
+                    fragment.appendChild(document.createTextNode(parte));
+                } else {
+                    fragment.appendChild(parte);
+                }
+            });
+
+            nodo.parentNode.replaceChild(fragment, nodo);
         }
-        // 🔥 insertar en editor
-
-    } catch (error) {
-        console.error(error);
-        console.warn("Error controlado:", error);
     }
-});
+document.getElementById("form").addEventListener("submit", async (e) => {
+        e.preventDefault();
 
+        const fileInput = document.getElementById("file");
+        const file = fileInput.files[0];
+
+        if (!file) {
+            alert("Selecciona un archivo");
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append("file", file);
+
+        try {
+            const response = await fetch("/upload", {
+                method: "POST",
+                body: formData
+            });
+
+            if (!response.ok) {
+                throw new Error("Error en servidor");
+            }
+
+            const text = await response.text();
+
+            let data = {};
+
+            try {
+                data = JSON.parse(text);
+            } catch (e) {
+                console.warn("⚠️ JSON inválido, pero continuo:", text);
+            }
+
+            let texto = data.texto || "";
+
+            const nombreArchivo = file.name.replace(".docx", "").replace(/\s+/g, "_");
+
+            const resHTML = await fetch(`/cargar-html/${nombreArchivo}`);
+            const dataHTML = await resHTML.json();
+
+            if (dataHTML.html) {
+                document.getElementById("editor").innerHTML = dataHTML.html;
+
+                documentoRestaurado = true;
+
+                document.querySelectorAll("[data-key]").forEach(span => {
+                    const key = span.dataset.key;
+                    actualizarInputDesdeSpans(key);
+                });
+
+                return;
+            }
+
+            const partes = dividirPartes(texto);
+
+            const actorDatos = detectarCampos(partes.actor);
+            const demandadoDatos = detectarCamposDemandado(partes.demandado);
+
+            let datos = {
+                ...actorDatos,
+                ...demandadoDatos,
+                ...data.datos
+            };
+
+            const necesitaIA = !datos.calle_principal_actor && !datos.parroquia_actor;
+
+            if (necesitaIA) {
+                const datosIA = await extraerDireccionConIA(texto);
+                datos = { ...datos, ...datosIA };
+            }
+
+            function setValor(id, valor) {
+                const el = document.getElementById(id);
+                if (el) el.value = valor || "";
+            }
+
+            const datosIA = data.datos || {};
+
+            for (let i = 1; i <= 5; i++) {
+                setValor(`nombre_testigo${i}`, datosIA[`nombre_testigo${i}`]);
+                setValor(`cedula_testigo${i}`, datosIA[`cedula_testigo${i}`]);
+                setValor(`direccion_testigo${i}`, datosIA[`direccion_testigo${i}`]);
+                setValor(`parroquia_testigo${i}`, datosIA[`parroquia_testigo${i}`]);
+                setValor(`ciudad_testigo${i}`, datosIA[`ciudad_testigo${i}`]);
+                setValor(`email_testigo${i}`, datosIA[`email_testigo${i}`]);
+                setValor(`objeto_testigo${i}`, datosIA[`objeto_testigo${i}`]);
+            }
+
+            setValor("actor", limpiarNombre(datosIA.actor?.nombre));
+            setValor("cedula", datosIA.actor?.cedula);
+            setValor("age", datosIA.actor?.edad);
+            setValor("civil", datosIA.actor?.estado_civil);
+            setValor("profesion", datosIA.actor?.profesion);
+            setValor("ciudadania", datosIA.actor?.ciudadania);
+            setValor("email", datosIA.actor?.email);
+            setValor("telefono_actor", datosIA.actor?.telefono);
+
+            setValor("parroquia_actor", datosIA.actor?.direccion?.parroquia);
+            setValor("barrio_actor", datosIA.actor?.direccion?.barrio);
+            setValor("calle_principal_actor", datosIA.actor?.direccion?.calle_principal);
+            setValor("calle_secundaria_actor", datosIA.actor?.direccion?.calle_secundaria);
+            setValor("numero_casa_actor", datosIA.actor?.direccion?.numero_casa);
+            setValor("codigo_postal_actor", datosIA.actor?.direccion?.codigo_postal);
+
+            setValor("nombre_demandado", datosIA.demandado?.nombre);
+            setValor("cedula_demandado", datosIA.demandado?.cedula);
+            setValor("email_demandado", datosIA.demandado?.email);
+            setValor("telefono_demandado", datosIA.demandado?.telefono);
+
+            setValor("parroquia_demandado", datosIA.demandado?.direccion?.parroquia);
+            setValor("barrio_demandado", datosIA.demandado?.direccion?.barrio);
+            setValor("calle_principal_demandado", datosIA.demandado?.direccion?.calle_principal);
+            setValor("calle_secundaria_demandado", datosIA.demandado?.direccion?.calle_secundaria);
+            setValor("numero_casa_demandado", datosIA.demandado?.direccion?.numero_casa);
+            setValor("codigo_postal_demandado", datosIA.demandado?.direccion?.codigo_postal);
+
+            setValor("tipo_juicio", datosIA.tipo_juicio);
+
+            const editor = document.getElementById("editor");
+
+            texto = texto.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            editor.innerHTML = texto;
+
+            textoBase = texto;
+
+            resaltarGlobal();
+            guardarEstado();
+
+        } catch (error) {
+            console.error(error);
+            console.warn("Error controlado:", error);
+        }
+    });
 function abrirConfig() {
     document.getElementById("configPanel").style.display = "block";
 }
@@ -364,19 +444,7 @@ function guardarPrompt() {
 }
 
 
-// 🔥 FUNCIÓN PARA RESALTAR TEXTO
-function resaltarSeleccion() {
-    const selection = window.getSelection();
 
-    if (!selection.rangeCount) return;
-
-    const range = selection.getRangeAt(0);
-
-    const span = document.createElement("span");
-    span.style.backgroundColor = "yellow";
-
-    range.surroundContents(span);
-}
 
 // 🔥 ESTADO GLOBAL
 let resaltadoActivo = true;
@@ -388,6 +456,7 @@ let valoresOriginales = {};
 
 // 🔥 SINCRONIZACIÓN INPUT → TEXTO
 document.querySelectorAll(".entry-input").forEach(input => {
+    if (documentoRestaurado) return;
     input.addEventListener("input", () => {
 
     const key = input.id;
@@ -401,30 +470,15 @@ document.querySelectorAll(".entry-input").forEach(input => {
 
         if (!spans.length) return;
 
-        const palabras = nuevoValor.trim().split(/\s+/);
-
-        // 🔥 agrupar por bloques
-        const bloques = [];
-        let bloqueActual = [];
-
-        spans.forEach((span, i) => {
-            bloqueActual.push(span);
-
-            // cuando el bloque alcanza el tamaño del nombre → cerrar bloque
-            if (bloqueActual.length === palabras.length) {
-                bloques.push(bloqueActual);
-                bloqueActual = [];
-            }
-        });
-
-        // 🔥 aplicar actualización por bloque
-        bloques.forEach(bloque => {
-            bloque.forEach((span, i) => {
-                span.textContent = palabras[i] || "";
-            });
+        // 🔥 SOLO actualizar texto, no lógica compleja
+        spans.forEach(span => {
+            span.textContent = nuevoValor;
         });
 
         guardarEstado();
+        guardarEstadoEditor();
+        guardarEnServidor();
+
         return;
     }
 
@@ -554,19 +608,27 @@ function cargarEstado() {
     resaltarGlobal();
 }
 
+function eliminarSpansPorKey(key) {
+    const editor = document.getElementById("editor");
 
-// 🔥 RESALTAR MANUAL
-function resaltarSeleccion() {
-    const selection = window.getSelection();
-    if (!selection.rangeCount) return;
+    const spans = editor.querySelectorAll(`[data-key="${key}"]`);
 
-    const range = selection.getRangeAt(0);
+    spans.forEach(span => {
+        span.replaceWith(document.createTextNode(span.textContent));
+    });
 
-    const span = document.createElement("span");
-    span.style.backgroundColor = "yellow";
-
-    range.surroundContents(span);
+    editor.normalize(); // 🔥 IMPORTANTE
 }
+
+function obtenerColor(key) {
+
+    if (key.includes("demandado")) return "#77cdff"; // 🔵
+    if (key.includes("actor")) return "#FFF59D";     // 🟡
+    if (key.includes("juicio")) return "#C8E6C9";    // 🟢
+
+    return "#E0E0E0";
+}
+
 
 
 function limpiarEstado() {
@@ -574,9 +636,67 @@ function limpiarEstado() {
     location.reload();
 }
 
+function resaltarTodasLasCoincidencias(key, texto) {
+
+    const editor = document.getElementById("editor");
+    if (!editor || !texto) return;
+
+    const color = obtenerColor(key);
+
+    const textoLower = texto.toLowerCase();
+
+    const walker = document.createTreeWalker(
+        editor,
+        NodeFilter.SHOW_TEXT,
+        null,
+        false
+    );
+
+    let nodos = [];
+
+    let nodo;
+    while ((nodo = walker.nextNode())) {
+        nodos.push(nodo);
+    }
+
+    nodos.forEach(nodo => {
+
+        if (nodo.parentNode.closest(`span[data-key="${key}"]`)) return;
+
+        const contenido = nodo.nodeValue;
+        const contenidoLower = contenido.toLowerCase();
+
+        if (!contenidoLower.includes(textoLower)) return;
+
+        const partes = contenido.split(new RegExp(`(${texto})`, "gi"));
+
+        const fragment = document.createDocumentFragment();
+
+        partes.forEach(parte => {
+
+            if (parte.toLowerCase() === textoLower) {
+
+                const span = document.createElement("span");
+                span.dataset.key = key;
+                span.dataset.manual = "true";
+                span.style.background = color;
+                span.textContent = parte;
+
+                fragment.appendChild(span);
+
+            } else {
+                fragment.appendChild(document.createTextNode(parte));
+            }
+        });
+
+        nodo.parentNode.replaceChild(fragment, nodo);
+    });
+}
 
 function resaltarGlobal() {
-
+    if (documentoRestaurado) {
+        console.log("⛔ NO resaltar (documento restaurado)");
+        return;}
     const editor = document.getElementById("editor");
 
     let html = limpiarSpans(textoBase);
@@ -655,6 +775,7 @@ function resaltarGlobal() {
 
 
 document.addEventListener("click", function(e) {
+
     if (!e.target.classList.contains("btn-rojo")) return;
 
     e.preventDefault();
@@ -663,37 +784,30 @@ document.addEventListener("click", function(e) {
     const input = document.getElementById(key);
     const editor = document.getElementById("editor");
 
+    if (!input || !editor) return;
+
     const selection = window.getSelection();
     const textoSeleccionado = selection.toString().trim();
 
-    // 🔒 SOLO buscar dentro del editor
-    const spans = editor.querySelectorAll(`[data-key="${key}"]`);
-
-    // 🟢 1. SI HAY SELECCIÓN → resaltar
+    // 🟢 CASO 1: HAY SELECCIÓN → RESALTAR
     if (textoSeleccionado) {
+
         input.value = textoSeleccionado;
-        resaltarGlobal();
+
+        eliminarSpansPorKey(key);
+
+        resaltarTodasLasCoincidencias(key, textoSeleccionado);
+
         guardarEstado();
         guardarEstadoEditor();
         guardarEnServidor();
+
         return;
     }
 
-    // 🔴 2. SI NO HAY SELECCIÓN Y NO HAY SPANS → NO HACER NADA
-    if (spans.length === 0) {
-        return;
-    }
+    // 🔴 CASO 2: NO HAY SELECCIÓN → BORRAR
 
-    // 🔴 3. SI YA ESTÁ VACÍO → NO HACER NADA (evita tercer click)
-    if (!input.value.trim()) {
-        return;
-    }
-
-    // 🔥 4. BORRAR SOLO UNA VEZ
-    spans.forEach(span => {
-        const texto = span.textContent;
-        span.remove();
-    });
+    eliminarSpansPorKey(key);
 
     input.value = "";
 
