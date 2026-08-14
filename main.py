@@ -12,6 +12,19 @@ from fastapi import Body
 from fastapi.responses import FileResponse
 from docx import Document
 import os
+import sys
+import re
+
+# 🔧 FIX: la consola de Windows (cp1252) no puede imprimir emojis/acentos
+# raros y UN CRASH de print() rompía el análisis completo (la IA devolvía
+# {}). Se fuerza la salida a UTF-8 con reemplazo, para que los print de
+# depuración nunca tiren la aplicación.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 app = FastAPI()
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -45,6 +58,31 @@ def datos_incompletos(datos):
         if datos.get(f"nombre_testigo{i}") is None:
             return True
     return False
+
+
+# 🔧 FIX: los guardados manuales del usuario (formato plano, con
+# "prompt_usado": "") son su fuente de verdad: se cargan SIEMPRE que el
+# archivo sea el mismo, sin importar el prompt configurado ni la versión.
+# Solo los análisis automáticos de la IA exigen prompt/versión iguales.
+def es_guardado_manual(datos_guardados):
+    if not isinstance(datos_guardados, dict):
+        return False
+    if datos_guardados.get("guardado_manual"):
+        return True
+    datos = datos_guardados.get("datos", {})
+    # formato manual: actor es TEXTO plano; formato IA: actor es DICT
+    return isinstance(datos.get("actor"), str) and datos_guardados.get("prompt_usado") == ""
+
+
+# 🔧 FIX: al cargar un guardado manual, el "texto" guardado es el texto
+# plano del editor (con los cambios destructivos que el usuario hizo).
+# Si el usuario re-subió el archivo ORIGINAL, ese texto ya no coincide
+# exactamente con el docx, así que comparamos de forma NORMALIZADA
+# (mayúsculas, espacios y saltos) para no re-analizar y perder datos.
+def normalizar_para_restaurar(t):
+    if not isinstance(t, str):
+        return ""
+    return re.sub(r"\s+", " ", t).strip().lower()
 
 
 # 📂 UPLOAD
@@ -109,10 +147,39 @@ def upload(
 
             datos_guardados_datos = datos_guardados.get("datos", {})
 
-            # 🔧 FIX: si el análisis guardado está incompleto (falta el
-            # actor o los campos de testigos), se vuelve a analizar con
-            # la IA y se actualiza el caché en Drive.
-            if not datos_incompletos(datos_guardados_datos):
+            es_manual = es_guardado_manual(datos_guardados)
+
+            if es_manual:
+                # 🔧 FIX: el guardado MANUAL es la fuente de verdad del
+                # usuario (corrigió campos y se sobrescribió en Drive, sin
+                # copias). Se carga SIEMPRE que el archivo sea el mismo
+                # (texto normalizado coincide), SIN importar el prompt
+                # configurado ni la versión del prompt del servidor. Antes
+                # se exigía prompt_usado == prompt_usuario y, si el usuario
+                # tenía un prompt configurado, el guardado manual NUNCA se
+                # cargaba: la IA re-analizaba y perdía las correcciones.
+                texto_referencia = datos_guardados.get("texto_original") or datos_guardados.get("texto", "")
+
+                if normalizar_para_restaurar(texto_referencia) == normalizar_para_restaurar(texto):
+
+                    print("✔ JSON MANUAL → CARGAR")
+
+                    porcentaje, mensaje = calcular_confianza(datos_guardados_datos)
+
+                    return {
+                        "mensaje": "Cargado desde Drive",
+                        "documento_id": hash_doc,
+                        "datos": datos_guardados_datos,
+                        "texto": datos_guardados.get("texto", ""),
+                        "texto_html": datos_guardados.get("texto_html", ""),
+                        "texto_original": texto_referencia,
+                        "porcentaje": porcentaje,
+                        "mensaje_confianza": mensaje
+                    }
+
+                print("⚠️ JSON MANUAL DE OTRO DOCUMENTO → RE-ANALIZAR")
+
+            elif not datos_incompletos(datos_guardados_datos):
 
                 # 🔧 FIX: la caché SOLO sirve si se generó con el MISMO
                 # prompt del usuario, la MISMA versión del prompt del
@@ -140,13 +207,16 @@ def upload(
                         "documento_id": hash_doc,
                         "datos": datos_guardados_datos,
                         "texto": datos_guardados.get("texto", ""),
+                        "texto_html": datos_guardados.get("texto_html", ""),
+                        "texto_original": datos_guardados.get("texto", ""),
                         "porcentaje": porcentaje,
                         "mensaje_confianza": mensaje
                     }
 
                 print("⚠️ PROMPT/VERSIÓN CAMBIÓ → RE-ANALIZAR CON IA")
 
-            print("⚠️ JSON INCOMPLETO → RE-ANALIZAR CON IA")
+            else:
+                print("⚠️ JSON INCOMPLETO → RE-ANALIZAR CON IA")
 
         else:
             print("⚠️ JSON VACÍO → USAR IA")
@@ -178,6 +248,7 @@ def upload(
         "documento_id": hash_doc,
         "datos": datos,
         "texto": texto,
+        "texto_original": texto,
         "porcentaje": porcentaje,
         "mensaje_confianza": mensaje_confianza
     }
@@ -186,6 +257,7 @@ def chat_ia(data: dict = Body(...)):
 
     mensaje = data.get("mensaje", "")
     historial = data.get("historial", [])
+    instrucciones = data.get("instrucciones", "")
 
     if not mensaje or not mensaje.strip():
         raise HTTPException(status_code=400, detail="Mensaje vacío")
@@ -193,9 +265,63 @@ def chat_ia(data: dict = Body(...)):
     if not isinstance(historial, list):
         historial = []
 
-    respuesta = chatear_con_ia(mensaje.strip(), historial)
+    # 🔧 FIX: el chat también recibe las instrucciones adicionales que el
+    # usuario escribió en Configurar IA, para que la IA las respete al
+    # responder y al proponer correcciones.
+    respuesta = chatear_con_ia(mensaje.strip(), historial, instrucciones)
 
     return {"respuesta": respuesta}
+
+
+@app.post("/reanalizar")
+def reanalizar(data: dict = Body(...)):
+
+    # 🔧 NUEVO: re-analiza el documento ACTUAL (ya cargado en el editor)
+    # con el prompt nuevo, para que las correcciones del chat se apliquen
+    # de inmediato sin volver a subir el archivo.
+
+    texto = data.get("texto", "")
+    prompt = data.get("prompt", "")
+    documento_id = data.get("documento_id", "")
+
+    if not texto or not texto.strip():
+        raise HTTPException(status_code=400, detail="No hay texto para re-analizar")
+
+    prompt_usuario = (prompt or "").strip()
+
+    service = get_service()
+    CARPETA_PRINCIPAL = "1m_yHvLo0XKpBavojbHTOw0z2nduzjT7k"
+
+    # La carpeta se identifica con el MISMO documento_id (hash) del upload,
+    # así el datos.json actual se sobrescribe con los datos corregidos.
+    hash_doc = documento_id or ""
+    carpeta_id = obtener_o_crear_carpeta(service, hash_doc, CARPETA_PRINCIPAL)
+
+    from drive import subir_o_actualizar_json
+
+    datos = analizar_con_ia(texto, prompt_usuario)
+
+    subir_o_actualizar_json(service, carpeta_id, "datos.json", {
+        "texto": texto,
+        "datos": datos,
+        "prompt_usado": prompt_usuario,
+        "prompt_version": PROMPT_VERSION
+    })
+
+    porcentaje, mensaje_confianza = calcular_confianza(datos)
+
+    if len(texto) > 120000:
+        mensaje_confianza += " El documento es largo: la IA solo revisó la primera parte del texto."
+
+    return {
+        "mensaje": "Documento reanalizado",
+        "documento_id": hash_doc,
+        "datos": datos,
+        "texto": texto,
+        "texto_original": texto,
+        "porcentaje": porcentaje,
+        "mensaje_confianza": mensaje_confianza
+    }
 
 
 @app.post("/exportar-docx")
@@ -249,9 +375,12 @@ def guardar_html(data: dict = Body(...)):
 
     subir_o_actualizar_json(service, carpeta_id, "datos.json", {
         "texto": texto_plano,
+        "texto_html": texto,
+        "texto_original": data.get("texto_original", texto_plano),
         "datos": datos,
         "prompt_usado": "",
-        "prompt_version": PROMPT_VERSION
+        "prompt_version": PROMPT_VERSION,
+        "guardado_manual": True
     })
 
     print("🔥 GUARDADO EN DRIVE")

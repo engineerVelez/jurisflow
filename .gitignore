@@ -18,3 +18,6 @@ temp_*.pdf
 
 # Archivos temporales
 temp_*
+
+datos.json
+diagnostico_drive.py

@@ -1,4 +1,4 @@
-const VERSION_SCRIPT = 122;
+const VERSION_SCRIPT = 127;
 console.log("🔥 VERSION NUEVA 🔥 v" + VERSION_SCRIPT);
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -211,6 +211,12 @@ function llenarEntriesDesdeIA(datosIA) {
     const actorTexto = typeof datosIA.actor === "string" ? datosIA.actor : "";
     const demandadoTexto = typeof datosIA.demandado === "string" ? datosIA.demandado : "";
 
+    // 🔧 FIX: preferir el valor que trae la IA, pero si está VACÍO usar el
+    // detectado por regex (datos fusionados). Antes el valor regex quedaba
+    // descartado y campos como calles/cédulas quedaban vacíos cuando la IA
+    // no los devolvía.
+    const mejor = (v1, v2) => (v1 && String(v1).trim()) ? v1 : (v2 || "");
+
     for (let i = 1; i <= 5; i++) {
         setValor(`nombre_testigo${i}`, limpiarNombre(datosIA[`nombre_testigo${i}`]));
         setValor(`cedula_testigo${i}`, datosIA[`cedula_testigo${i}`]);
@@ -221,35 +227,35 @@ function llenarEntriesDesdeIA(datosIA) {
         setValor(`objeto_testigo${i}`, datosIA[`objeto_testigo${i}`]);
     }
 
-    setValor("actor", limpiarNombre(actorDict ? actorDict.nombre : actorTexto));
-    setValor("cedula", actorDict ? actorDict.cedula : datosIA.cedula);
-    setValor("age", actorDict ? actorDict.edad : datosIA.age);
-    setValor("civil", actorDict ? actorDict.estado_civil : datosIA.civil);
-    setValor("profesion", actorDict ? actorDict.profesion : datosIA.profesion);
-    setValor("ciudadania", actorDict ? actorDict.ciudadania : datosIA.ciudadania);
-    setValor("email", actorDict ? actorDict.email : datosIA.email);
-    setValor("telefono_actor", actorDict ? actorDict.telefono : datosIA.telefono_actor);
+    setValor("actor", limpiarNombre(mejor(actorDict && actorDict.nombre, actorTexto)));
+    setValor("cedula", mejor(actorDict && actorDict.cedula, datosIA.cedula));
+    setValor("age", mejor(actorDict && actorDict.edad, datosIA.age));
+    setValor("civil", mejor(actorDict && actorDict.estado_civil, datosIA.civil));
+    setValor("profesion", mejor(actorDict && actorDict.profesion, datosIA.profesion));
+    setValor("ciudadania", mejor(actorDict && actorDict.ciudadania, datosIA.ciudadania));
+    setValor("email", mejor(actorDict && actorDict.email, datosIA.email));
+    setValor("telefono_actor", mejor(actorDict && actorDict.telefono, datosIA.telefono_actor));
 
     const ad = actorDict ? actorDict.direccion : null;
-    setValor("parroquia_actor", ad ? ad.parroquia : datosIA.parroquia_actor);
-    setValor("barrio_actor", ad ? ad.barrio : datosIA.barrio_actor);
-    setValor("calle_principal_actor", ad ? ad.calle_principal : datosIA.calle_principal_actor);
-    setValor("calle_secundaria_actor", ad ? ad.calle_secundaria : datosIA.calle_secundaria_actor);
-    setValor("numero_casa_actor", ad ? ad.numero_casa : datosIA.numero_casa_actor);
-    setValor("codigo_postal_actor", ad ? ad.codigo_postal : datosIA.codigo_postal_actor);
+    setValor("parroquia_actor", mejor(ad && ad.parroquia, datosIA.parroquia_actor));
+    setValor("barrio_actor", mejor(ad && ad.barrio, datosIA.barrio_actor));
+    setValor("calle_principal_actor", mejor(ad && ad.calle_principal, datosIA.calle_principal_actor));
+    setValor("calle_secundaria_actor", mejor(ad && ad.calle_secundaria, datosIA.calle_secundaria_actor));
+    setValor("numero_casa_actor", mejor(ad && ad.numero_casa, datosIA.numero_casa_actor));
+    setValor("codigo_postal_actor", mejor(ad && ad.codigo_postal, datosIA.codigo_postal_actor));
 
-    setValor("nombre_demandado", limpiarNombre(demandadoDict ? demandadoDict.nombre : demandadoTexto));
-    setValor("cedula_demandado", demandadoDict ? demandadoDict.cedula : datosIA.cedula_demandado);
-    setValor("email_demandado", demandadoDict ? demandadoDict.email : datosIA.email_demandado);
-    setValor("telefono_demandado", demandadoDict ? demandadoDict.telefono : datosIA.telefono_demandado);
+    setValor("nombre_demandado", limpiarNombre(mejor(demandadoDict && demandadoDict.nombre, demandadoTexto || datosIA.nombre_demandado)));
+    setValor("cedula_demandado", mejor(demandadoDict && demandadoDict.cedula, datosIA.cedula_demandado));
+    setValor("email_demandado", mejor(demandadoDict && demandadoDict.email, datosIA.email_demandado));
+    setValor("telefono_demandado", mejor(demandadoDict && demandadoDict.telefono, datosIA.telefono_demandado));
 
     const dd = demandadoDict ? demandadoDict.direccion : null;
-    setValor("parroquia_demandado", dd ? dd.parroquia : datosIA.parroquia_demandado);
-    setValor("barrio_demandado", dd ? dd.barrio : datosIA.barrio_demandado);
-    setValor("calle_principal_demandado", dd ? dd.calle_principal : datosIA.calle_principal_demandado);
-    setValor("calle_secundaria_demandado", dd ? dd.calle_secundaria : datosIA.calle_secundaria_demandado);
-    setValor("numero_casa_demandado", dd ? dd.numero_casa : datosIA.numero_casa_demandado);
-    setValor("codigo_postal_demandado", dd ? dd.codigo_postal : datosIA.codigo_postal_demandado);
+    setValor("parroquia_demandado", mejor(dd && dd.parroquia, datosIA.parroquia_demandado));
+    setValor("barrio_demandado", mejor(dd && dd.barrio, datosIA.barrio_demandado));
+    setValor("calle_principal_demandado", mejor(dd && dd.calle_principal, datosIA.calle_principal_demandado));
+    setValor("calle_secundaria_demandado", mejor(dd && dd.calle_secundaria, datosIA.calle_secundaria_demandado));
+    setValor("numero_casa_demandado", mejor(dd && dd.numero_casa, datosIA.numero_casa_demandado));
+    setValor("codigo_postal_demandado", mejor(dd && dd.codigo_postal, datosIA.codigo_postal_demandado));
 
     setValor("numero_juicio", datosIA.numero_juicio);
     setValor("tipo_juicio", datosIA.tipo_juicio);
@@ -453,7 +459,7 @@ function resaltarNombrePorPalabras(key, valorCompleto) {
         NodeFilter.SHOW_TEXT,
         {
             acceptNode: (nodo) => {
-                if (nodo.parentNode.closest("span[data-key]")) {
+                if (nodo.parentNode.closest("span[data-key], span[data-protegido]")) {
                     return NodeFilter.FILTER_REJECT;
                 }
                 if (!nodo.nodeValue || !nodo.nodeValue.trim()) {
@@ -634,7 +640,7 @@ function resaltarCoincidenciasDOM(key, valor, color) {
 
     while ((nodo = walker.nextNode())) {
 
-        if (nodo.parentNode.closest("span[data-key]")) continue;
+        if (nodo.parentNode.closest("span[data-key], span[data-protegido]")) continue;
 
         const textoOriginal = nodo.nodeValue;
         const textoNormalizado = normalizar(textoOriginal);
@@ -752,61 +758,115 @@ document.getElementById("form").addEventListener("submit", async (e) => {
         }
 
         const data = await response.json();
-        const text = data.texto || "";
 
-        // 🔎 TRAZADO: valor que DEVOLVIÓ la IA para el documento ACTUAL
-        console.log("🤖 VALOR IA:", data.datos?.tipo_juicio);
+        // 🔧 FIX (re-analizar desde el chat): se reutiliza la misma lógica
+        // que aplica los datos de la IA al editor (entries, resaltado, etc.)
+        aplicarDatosIA(data);
 
-        console.log("ENTRY ACTOR ANTES:", document.getElementById("actor")?.value);
-        console.log("🧹 LIMPIANDO ENTRY");
+    } catch (error) {
+        console.error(error);
+        alert("Error al procesar el archivo: " + (error.message || "intenta de nuevo"));
+    }
+});
 
-        // 🔧 FIX: cada documento NUEVO SIEMPRE empieza con TODOS los Entry
-        // vacíos. No se restaura memoria automáticamente en este flujo: los
-        // únicos valores que pueden aparecer son los del documento ACTUAL
-        // (IA/JSON). La memoria solo se usa en una restauración explícita
-        // del documento guardado.
-        document.querySelectorAll(".entry-input").forEach(input => {
-            input.value = "";
-        });
+// 🔧 NUEVO: aplica la respuesta de la IA (upload o re-analizar) al editor:
+// llena los Entry, pinta el texto, resalta los nombres y guarda estado.
+// Se extrajo del submit para reutilizarla con "Aplicar a los análisis".
+async function aplicarDatosIA(data) {
+    const text = data.texto || "";
 
-        documentoId = data.documento_id || "";
-        cargarMemoriaDocs();
+    // 🔎 TRAZADO: valor que DEVOLVIÓ la IA para el documento ACTUAL
+    console.log("🤖 VALOR IA:", data.datos?.tipo_juicio);
 
-        console.log("🤖 DATOS IA ACTUALES:", data.datos);
+    console.log("ENTRY ACTOR ANTES:", document.getElementById("actor")?.value);
+    console.log("🧹 LIMPIANDO ENTRY");
 
-        mostrarConfianza(data);
+    // 🔧 FIX: cada documento NUEVO SIEMPRE empieza con TODOS los Entry
+    // vacíos. No se restaura memoria automáticamente en este flujo: los
+    // únicos valores que pueden aparecer son los del documento ACTUAL
+    // (IA/JSON). La memoria solo se usa en una restauración explícita
+    // del documento guardado.
+    document.querySelectorAll(".entry-input").forEach(input => {
+        input.value = "";
+    });
 
-        textoBase = text;
+    documentoId = data.documento_id || "";
+    cargarMemoriaDocs();
 
-        let texto = text;
+    console.log("🤖 DATOS IA ACTUALES:", data.datos);
 
-        const partes = dividirPartes(texto);
+    mostrarConfianza(data);
 
-        const actorDatos = detectarCampos(partes.actor);
-        const demandadoDatos = detectarCamposDemandado(partes.demandado);
+    textoBase = text;
+    textoOriginal = data.texto_original || text;
 
-        let datos = {
-            ...actorDatos,
-            ...demandadoDatos,
-            ...data.datos
-        };
+    let texto = text;
 
-        const datosIA = data.datos || {};
+    const partes = dividirPartes(texto);
 
-        console.log("📝 CARGANDO ENTRY ACTUALES");
+    // 🔧 FIX (datos actor/demandado): cuando el documento NO contiene la
+    // palabra "demandado" (p.ej. contestaciones donde quien comparece y
+    // da sus datos es el demandado), el split no separa y TODO el texto
+    // queda en la parte del actor: el regex metería los datos del
+    // demandado (cédula, correo, barrio...) en los campos del ACTOR.
+    // Para evitarlo, si la IA devolvió el nombre del demandado se
+    // delimita la parte del actor hasta la primera mención de ese nombre.
+    let actorTexto = partes.actor;
+    const nombreDemandadoIA = (data.datos && (data.datos.demandado && data.datos.demandado.nombre || data.datos.nombre_demandado)) || "";
+    if (!(partes.demandado || "").trim() && nombreDemandadoIA) {
+        const idx = texto.toLowerCase().indexOf(nombreDemandadoIA.toLowerCase());
+        if (idx > 0) actorTexto = texto.slice(0, idx);
+        else if (idx === 0) actorTexto = "";
+    }
 
-        // 🔎 TRAZADO: valor del Entry ANTES de asignar el JSON actual
-        console.log("📝 ENTRY ANTES:", document.getElementById("tipo_juicio")?.value);
+    const actorDatos = detectarCampos(actorTexto);
+    const demandadoDatos = detectarCamposDemandado(partes.demandado);
 
-        llenarEntriesDesdeIA(datosIA);
+    // 🔧 FIX: fusionar la detección por regex (actorDatos/demandadoDatos)
+    // con lo que devolvió la IA/manual. La IA gana en conflicto, pero si
+    // un campo viene vacío, llenarEntriesDesdeIA usa el valor regex.
+    let datos = {
+        ...actorDatos,
+        ...demandadoDatos,
+        ...data.datos
+    };
 
-        // 🔎 TRAZADO: valor del Entry DESPUÉS de asignar el JSON actual
-        console.log("📝 ENTRY DESPUÉS:", document.getElementById("tipo_juicio")?.value);
+    const datosIA = data.datos || {};
 
-        console.log("ENTRY ACTOR DESPUÉS:", document.getElementById("actor")?.value);
+    console.log("📝 CARGANDO ENTRY ACTUALES");
 
-        const editor = document.getElementById("editor");
+    // 🔎 TRAZADO: valor del Entry ANTES de asignar el JSON actual
+    console.log("📝 ENTRY ANTES:", document.getElementById("tipo_juicio")?.value);
 
+    // 🔧 FIX: se pasa el objeto FUSIONADO (regex + IA/manual) para que
+    // las calles/cédulas detectadas por regex rellenen campos que la
+    // IA dejó vacíos. Antes se pasaba solo data.datos y la detección
+    // por regex quedaba descartada.
+    llenarEntriesDesdeIA(datos);
+
+    // 🔎 TRAZADO: valor del Entry DESPUÉS de asignar el JSON actual
+    console.log("📝 ENTRY DESPUÉS:", document.getElementById("tipo_juicio")?.value);
+
+    console.log("ENTRY ACTOR DESPUÉS:", document.getElementById("actor")?.value);
+
+    const editor = document.getElementById("editor");
+
+    // 🔧 RESTAURAR RESALTADOS: si el JSON guardado trae el HTML con los
+    // resaltados (texto_html), se pinta tal cual para recuperar TODO el
+    // resaltado (automáticos y manuales). Si no, se resalta desde cero
+    // con los values actuales de los entries.
+    const htmlConResaltado = data.texto_html && typeof data.texto_html === "string" && data.texto_html.trim();
+
+    if (htmlConResaltado) {
+        editor.innerHTML = data.texto_html;
+        textoBase = texto;
+        // 🔧 al restaurar un documento viejo, quitar calles/ciudades que
+        // estuvieran resaltadas dentro del bloque del encabezado del juzgado
+        // y volver a envolver el bloque protegido en el DOM
+        limpiarResaltadosEnBloqueJuzgado();
+        protegerBloqueJuzgadoEnDOM();
+        console.log("🎨 HTML CON RESALTADOS RESTAURADO DESDE DRIVE");
+    } else {
         texto = texto.replace(/</g, "&lt;").replace(/>/g, "&gt;");
         editor.innerHTML = texto;
 
@@ -817,36 +877,74 @@ document.getElementById("form").addEventListener("submit", async (e) => {
 
         resaltarNombrePorPalabras("actor", document.getElementById("actor")?.value || "");
         resaltarNombrePorPalabras("nombre_demandado", document.getElementById("nombre_demandado")?.value || "");
-
-        guardarEstado();
-        guardarEstadoEditor();
-        guardarEnServidor();
-
-        const idMem = idMemoria(); // 🔧 FIX: antes archivoActual (nombre de archivo)
-
-        if (!memoriaDocs.documentos[idMem]) {
-            memoriaDocs.documentos[idMem] = {
-                campos: {},
-                resaltados: []
-            };
-        }
-
-        // 🔎 TRAZADO: valor del Entry justo ANTES de guardar la memoria
-        console.log("💾 ENTRY ANTES DE GUARDAR:", document.getElementById("tipo_juicio")?.value);
-
-        document.querySelectorAll(".entry-input").forEach(input => {
-            memoriaDocs.documentos[idMem].campos[input.id] = input.value;
-        });
-
-        guardarMemoriaDocs();
-
-    } catch (error) {
-        console.error(error);
-        alert("Error al procesar el archivo: " + (error.message || "intenta de nuevo"));
     }
-});
+
+    guardarEstado();
+    guardarEstadoEditor();
+    guardarEnServidor();
+
+    const idMem = idMemoria(); // 🔧 FIX: antes archivoActual (nombre de archivo)
+
+    if (!memoriaDocs.documentos[idMem]) {
+        memoriaDocs.documentos[idMem] = {
+            campos: {},
+            resaltados: []
+        };
+    }
+
+    // 🔎 TRAZADO: valor del Entry justo ANTES de guardar la memoria
+    console.log("💾 ENTRY ANTES DE GUARDAR:", document.getElementById("tipo_juicio")?.value);
+
+    document.querySelectorAll(".entry-input").forEach(input => {
+        memoriaDocs.documentos[idMem].campos[input.id] = input.value;
+    });
+
+    guardarMemoriaDocs();
+}
 
 let timerBannerConfianza;
+
+// 🔧 NUEVO: genera un resumen ENTENDIBLE para el cliente a partir de los
+// datos que reconoció la IA. Antes el banner solo decía "Se identificó el
+// X% de los datos", sin decir QUÉ se reconoció.
+function resumenLegible(datos) {
+    datos = datos || {};
+
+    const esObj = v => v && typeof v === "object" && !Array.isArray(v);
+    const actorDict = esObj(datos.actor) ? datos.actor : null;
+    const demandadoDict = esObj(datos.demandado) ? datos.demandado : null;
+    const actorTexto = typeof datos.actor === "string" ? datos.actor : "";
+    const demandadoTexto = typeof datos.demandado === "string" ? datos.demandado : "";
+
+    const actor = (actorDict && actorDict.nombre) || actorTexto || "";
+    const demandado = (demandadoDict && demandadoDict.nombre) || demandadoTexto || datos.nombre_demandado || "";
+
+    const partes = [];
+
+    if (actor) partes.push(`el actor ${actor}`);
+    if (demandado) partes.push(`el demandado ${demandado}`);
+
+    const cedula = (demandadoDict && demandadoDict.cedula) || datos.cedula_demandado
+        || (actorDict && actorDict.cedula) || datos.cedula || "";
+    if (cedula) partes.push(`la cédula ${cedula}`);
+
+    const ad = actorDict ? actorDict.direccion : null;
+    const dd = demandadoDict ? demandadoDict.direccion : null;
+    const barrio = (dd && dd.barrio) || datos.barrio_demandado
+        || (ad && ad.barrio) || datos.barrio_actor || "";
+    if (barrio) partes.push(`el barrio ${barrio}`);
+
+    const numeroJuicio = datos.numero_juicio || "";
+    if (numeroJuicio) partes.push(`el número de juicio ${numeroJuicio}`);
+
+    if (partes.length === 0) {
+        return "La IA no pudo identificar datos claros en el documento. Revísalo manualmente.";
+    }
+
+    const ultima = partes.pop();
+    const resumen = partes.length ? partes.join(", ") + " y " + ultima : ultima;
+    return "Se reconoció " + resumen + ".";
+}
 
 function mostrarConfianza(data) {
     const banner = document.getElementById("bannerConfianza");
@@ -872,10 +970,13 @@ function mostrarConfianza(data) {
         icono = "❌";
     }
 
+    const resumen = resumenLegible(data.datos);
+    const pctTexto = typeof pct === "number" ? ` (identificación ${pct}%)` : "";
+
     banner.style.display = "block";
     banner.style.background = color;
     banner.style.color = "#FFFFFF";
-    banner.innerHTML = `<strong>${icono} Identificación de la IA:</strong> ${msg || ""}<br><small>⚠️ La IA puede cometer errores. Verifica los datos antes de usarlos.</small>`;
+    banner.innerHTML = `<strong>${icono} ${resumen}</strong>${pctTexto}<br><small>⚠️ La IA puede cometer errores. Verifica los datos antes de usarlos.</small>`;
 
     clearTimeout(timerBannerConfianza);
     timerBannerConfianza = setTimeout(() => {
@@ -893,7 +994,14 @@ function cerrarConfig() {
 function guardarPrompt() {
     const prompt = document.getElementById("promptIA").value;
     localStorage.setItem("promptIA", prompt);
-    alert("Instrucciones guardadas");
+
+    // 🔧 FIX: al guardar instrucciones nuevas se borra el chat anterior,
+    // para que la IA no arrastre contexto viejo de otro prompt.
+    historialChat = [];
+    localStorage.removeItem("chatIA");
+    cargarChat();
+
+    alert("Instrucciones guardadas. El chat se reinició con el nuevo prompt.");
     cerrarConfig();
 }
 
@@ -983,7 +1091,11 @@ async function enviarChat() {
         const response = await fetch("/chat-ia", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ mensaje: msg, historial: historialChat })
+            body: JSON.stringify({
+                mensaje: msg,
+                historial: historialChat,
+                instrucciones: document.getElementById("promptIA")?.value || ""
+            })
         });
 
         if (!response.ok) throw new Error("Error en servidor");
@@ -996,7 +1108,7 @@ async function enviarChat() {
     }
 }
 
-function aplicarCorreccion(texto) {
+async function aplicarCorreccion(texto) {
     const ta = document.getElementById("promptIA");
     if (!ta) return;
 
@@ -1012,7 +1124,35 @@ function aplicarCorreccion(texto) {
     ta.value = actual ? actual + "\n- " + instruccion : "- " + instruccion;
 
     localStorage.setItem("promptIA", ta.value);
-    alert("Corrección aplicada a los análisis.");
+
+    // 🔧 FIX (nuevo): al aplicar una corrección, el documento ACTUAL se
+    // re-analiza de inmediato con el nuevo prompt, para que el usuario
+    // vea el cambio sin volver a subir el archivo. Antes solo se guardaba
+    // la instrucción y había que re-subir el documento.
+    if (textoBase && documentoId) {
+        try {
+            const response = await fetch("/reanalizar", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    texto: textoOriginal || textoBase,
+                    prompt: ta.value,
+                    documento_id: documentoId
+                })
+            });
+
+            if (!response.ok) throw new Error("Error en servidor");
+
+            const data = await response.json();
+            aplicarDatosIA(data);
+            alert("Corrección aplicada y el documento se reanalizó con las nuevas instrucciones.");
+        } catch (error) {
+            console.error(error);
+            alert("Corrección guardada, pero hubo un error al re-analizar: " + (error.message || "intenta de nuevo"));
+        }
+    } else {
+        alert("Corrección aplicada a los análisis.");
+    }
 }
 
 function cargarInstrucciones() {
@@ -1501,7 +1641,8 @@ function resaltarTodasLasCoincidencias(key, texto) {
 
         // 🔧 FIX: se salta también los nodos dentro de OTRO resaltado,
         // para que nunca se creen spans anidados (que corrompen el HTML)
-        if (nodo.parentNode.closest("span[data-key]")) return;
+        // y dentro del bloque protegido del encabezado del juzgado
+        if (nodo.parentNode.closest("span[data-key], span[data-protegido]")) return;
 
         const contenido = nodo.nodeValue;
         const contenidoLower = contenido.toLowerCase();
@@ -1621,6 +1762,125 @@ function resaltarTipoJuicio(html, valorT) {
     return html;
 }
 
+// 🔧 PROTECCIÓN DEL ENCABEZADO DEL JUZGADO: el bloque "UNIDAD JUDICIAL ...
+// PROVINCIA DE X." (o "JUZGADO ...") queda envuelto en un span marcador
+// mientras se resaltan los campos, para que ahí NO se resalten calles,
+// ciudades, parroquias ni cantones (p.ej. "CON SEDE EN EL CANTON
+// RUMIÑAHUI, PROVINCIA DE PICHINCHA."). El resto del documento se
+// resalta normal. Al final del resaltado el span se desenvolver.
+function protegerBloqueJuzgado(html) {
+    // solo se protege el ENCABEZADO (contiene la sede del juzgado), no
+    // cualquier mención de "juzgado" en el cuerpo del documento
+    return html.replace(
+        /^[ \t]*(UNIDAD\s+JUDICIAL\b[^\n]*|JUZGADO\b[^\n]*)/gim,
+        (m, bloque) => {
+            if (/\b(?:SEDE|PROVINCIA|CANTON|CANTÓN|PARROQUIA)\b/i.test(bloque)) {
+                return `<span data-protegido="1">${bloque}</span>`;
+            }
+            return m;
+        }
+    );
+}
+
+// Quita cualquier resaltado (span[data-key]) que haya quedado DENTRO del
+// bloque del encabezado del juzgado (usado al restaurar documentos viejos
+// que ya tenían calles/ciudades resaltadas en ese bloque).
+function limpiarResaltadosEnBloqueJuzgado() {
+    const editor = document.getElementById("editor");
+    if (!editor) return;
+
+    const texto = editor.textContent || "";
+    const m = /\bUNIDAD\s+JUDICIAL\b/i.exec(texto);
+    if (!m) return;
+
+    let fin = texto.indexOf("\n", m.index);
+    if (fin === -1) {
+        const sub = texto.slice(m.index);
+        const p = sub.search(/PROVINCIA\s+DE\s+[A-ZÁÉÍÓÚÑ]+[.,]?/i);
+        if (p !== -1) {
+            const punto = sub.indexOf(".", p);
+            fin = m.index + (punto === -1 ? sub.length : punto + 1);
+        } else {
+            fin = m.index + Math.min(sub.length, 160);
+        }
+    }
+
+    const aQuitar = new Set();
+    let acum = 0;
+    const walkerTxt = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT, null, false);
+    let tn;
+    while ((tn = walkerTxt.nextNode())) {
+        const len = tn.nodeValue.length;
+        const ini = acum;
+        acum += len;
+        if (acum <= m.index) continue;
+        if (ini >= fin) break;
+        let anc = tn.parentNode;
+        while (anc && anc !== editor) {
+            if (anc.matches && anc.matches("span[data-key]")) {
+                aQuitar.add(anc);
+                break;
+            }
+            anc = anc.parentNode;
+        }
+    }
+
+    aQuitar.forEach(span => {
+        span.replaceWith(document.createTextNode(span.textContent));
+    });
+    editor.normalize();
+}
+
+// Envuelve el bloque del encabezado del juzgado en un span data-protegido
+// sobre el DOM ya pintado (tras restaurar un HTML guardado), para que la
+// protección siga activa en futuros resaltados.
+function protegerBloqueJuzgadoEnDOM() {
+    const editor = document.getElementById("editor");
+    if (!editor) return;
+    if (editor.querySelector("span[data-protegido]")) return;
+
+    const nodos = [];
+    const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT, null, false);
+    let tn;
+    while ((tn = walker.nextNode())) nodos.push(tn);
+
+    let ini = -1;
+    for (let i = 0; i < nodos.length; i++) {
+        if (/\bUNIDAD\s+JUDICIAL\b/i.test(nodos[i].nodeValue)) { ini = i; break; }
+    }
+    if (ini === -1) return;
+
+    const nodosBloque = [];
+    for (let i = ini; i < nodos.length; i++) {
+        const valor = nodos[i].nodeValue;
+        const idxNl = valor.indexOf("\n");
+        if (idxNl !== -1) {
+            if (idxNl > 0) {
+                nodos[i].nodeValue = valor.slice(0, idxNl);
+                nodosBloque.push(nodos[i]);
+                nodos[i].parentNode.insertBefore(
+                    document.createTextNode(valor.slice(idxNl)),
+                    nodos[i].nextSibling
+                );
+            }
+            break;
+        }
+        nodosBloque.push(nodos[i]);
+    }
+
+    nodosBloque.forEach(tx => {
+        if (!tx.nodeValue.trim()) {
+            tx.parentNode.removeChild(tx);
+            return;
+        }
+        const span = document.createElement("span");
+        span.dataset.protegido = "1";
+        tx.parentNode.insertBefore(span, tx);
+        span.appendChild(tx);
+    });
+    editor.normalize();
+}
+
 function resaltarGlobal() {
     if (documentoRestaurado) {
         console.log("⛔ NO resaltar (documento restaurado)");
@@ -1629,6 +1889,13 @@ function resaltarGlobal() {
     const editor = document.getElementById("editor");
 
     let html = limpiarSpans(textoBase);
+
+    // 🔧 PROTEGER EL ENCABEZADO DEL JUZGADO: el bloque "UNIDAD JUDICIAL ...
+    // PROVINCIA DE X" (y variantes con JUZGADO) queda protegido para que
+    // NO se resalten ahí calles, ciudades, parroquias ni cantones (p.ej.
+    // "CON SEDE EN EL CANTON RUMIÑAHUI, PROVINCIA DE PICHINCHA"). El resto
+    // del documento se resalta normal.
+    html = protegerBloqueJuzgado(html);
 
     // 🎨 cada campo usa el color de su categoría (ver colorCampo)
     const colores = {};
@@ -1823,6 +2090,7 @@ async function guardarEnServidor() {
         body: JSON.stringify({
             texto: html,
             texto_plano: plano,
+            texto_original: textoOriginal || plano,
             datos: inputs,
             nombre: nombre.replace(/\s+/g, "_"),
             documento_id: documentoId || archivoActual

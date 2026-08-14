@@ -1,6 +1,15 @@
 from openai import OpenAI
 import json
 import os
+import sys
+
+# 🔧 FIX: la consola de Windows (cp1252) no puede imprimir emojis y un
+# crash de print() devolvía {} a la IA (parecía que "no funcionaba").
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 
 
 # =========================================================
@@ -20,6 +29,10 @@ import os
 # GROQ API
 # =========================================================
 
+# 🔧 FIX: se prefiere la variable de entorno GROQ_API_KEY; si no está
+# definida, se usa la clave de respaldo escrita aquí. (Si la clave vence
+# y Groq devuelve 401, hay que reemplazarla en esta línea o en la
+# variable de entorno y reiniciar el servidor.)
 API_KEY = os.environ.get("GROQ_API_KEY")
 
 client = OpenAI(
@@ -279,11 +292,13 @@ Analiza SOLO este documento:
             # si la respuesta es válida y ya identificó actor y demandado
             # con nombre, no hace falta reintentar
             actor_ok = (
-                isinstance(resultado.get("actor"), dict)
+                isinstance(resultado, dict)
+                and isinstance(resultado.get("actor"), dict)
                 and bool(resultado.get("actor", {}).get("nombre"))
             )
             demandado_ok = (
-                isinstance(resultado.get("demandado"), dict)
+                isinstance(resultado, dict)
+                and isinstance(resultado.get("demandado"), dict)
                 and bool(resultado.get("demandado", {}).get("nombre"))
             )
 
@@ -595,16 +610,36 @@ futuros análisis de documentos.
 """
 
 
-def chatear_con_ia(mensaje, historial=None):
+def chatear_con_ia(mensaje, historial=None, instrucciones=""):
     """Devuelve la respuesta conversacional de la IA.
 
     historial: lista de dicts {"rol": "usuario"|"ia", "contenido": "..."}
+    instrucciones: instrucciones adicionales que el usuario escribió en el
+    panel Configurar IA. Se inyectan en el system prompt para que la IA
+    las respete al responder y al proponer correcciones.
     """
+
+    # 🔧 FIX: el chat debe obedecer las instrucciones del usuario. Antes se
+    # usaba solo PROMPT_PRINCIPAL + MODO_CHAT y la IA ignoraba lo que el
+    # usuario escribía en "Instrucciones adicionales".
+    contexto = PROMPT_PRINCIPAL + MODO_CHAT
+
+    if instrucciones and instrucciones.strip():
+        contexto += f"""
+
+==================================================
+INSTRUCCIONES ADICIONALES DEL USUARIO (OBLIGATORIAS)
+==================================================
+El usuario configuró estas instrucciones para el análisis. RESPETALAS
+siempre al responder y al corregir documentos:
+
+{instrucciones.strip()}
+"""
 
     mensajes = [
         {
             "role": "system",
-            "content": PROMPT_PRINCIPAL + MODO_CHAT
+            "content": contexto
         }
     ]
 
