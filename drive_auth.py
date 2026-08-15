@@ -1,8 +1,10 @@
 from googleapiclient.discovery import build
-from google.oauth2 import service_account
+from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 import os
 import pickle
+import base64
+import io
 
 
 SCOPES = ["https://www.googleapis.com/auth/drive"]
@@ -11,25 +13,36 @@ SCOPES = ["https://www.googleapis.com/auth/drive"]
 def get_service():
 
     # =====================================================
-    # RENDER / PRODUCCIÓN
+    # RENDER
     # =====================================================
 
-    secret_file = "/etc/secrets/google-service-account.json"
+    token_b64 = os.environ.get("GOOGLE_TOKEN_PICKLE_B64")
 
-    if os.path.exists(secret_file):
+    if token_b64:
+        print("🔐 Usando OAuth de Google desde Render")
 
-        print("🔐 Usando cuenta de servicio de Google Drive")
+        try:
+            token_bytes = base64.b64decode(token_b64)
+            creds = pickle.load(io.BytesIO(token_bytes))
 
-        credentials = service_account.Credentials.from_service_account_file(
-            secret_file,
-            scopes=SCOPES
-        )
+            if not creds or not creds.valid:
+                if creds and creds.expired and creds.refresh_token:
+                    from google.auth.transport.requests import Request
+                    creds.refresh(Request())
+                else:
+                    raise RuntimeError(
+                        "❌ El token de Google no es válido o expiró."
+                    )
 
-        return build(
-            "drive",
-            "v3",
-            credentials=credentials
-        )
+            return build(
+                "drive",
+                "v3",
+                credentials=creds
+            )
+
+        except Exception as e:
+            print("❌ Error cargando token de Google:", e)
+            raise
 
     # =====================================================
     # WINDOWS / DESARROLLO LOCAL
@@ -38,7 +51,6 @@ def get_service():
     creds = None
 
     if os.path.exists("token.pickle"):
-
         with open("token.pickle", "rb") as token:
             creds = pickle.load(token)
 
