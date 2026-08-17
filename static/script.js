@@ -1,4 +1,4 @@
-const VERSION_SCRIPT = 127;
+const VERSION_SCRIPT = 137;
 console.log("🔥 VERSION NUEVA 🔥 v" + VERSION_SCRIPT);
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -11,6 +11,215 @@ let textoBase = "";
 let documentoRestaurado = false;
 let archivoActual = "";
 let documentoId = ""; // 🔧 NUEVO: id estable que devuelve el backend (/upload)
+
+let documentoBaseId = "";
+let casoId = "";
+let documentosBaseCache = [];
+let repoCategoriaActual = "TODOS";
+let docBaseSeleccionado = null;
+let configuracionActual = null;
+
+// ============================================================
+// 📚 CLASIFICACIÓN JURÍDICA ECUATORIANA
+// ============================================================
+
+const CATEGORIAS_PRINCIPALES = [
+    "CIVIL",
+    "FAMILIA, MUJER, NIÑEZ Y ADOLESCENCIA",
+    "LABORAL",
+    "INQUILINATO",
+    "CONSTITUCIONAL",
+    "PENAL",
+    "TRÁNSITO",
+    "VIOLENCIA CONTRA LA MUJER Y MIEMBROS DEL NÚCLEO FAMILIAR",
+    "CONTENCIOSO ADMINISTRATIVO",
+    "CONTENCIOSO TRIBUTARIO",
+    "ADMINISTRATIVO",
+    "COACTIVAS",
+    "GARANTÍAS PENITENCIARIAS",
+    "ADOLESCENTES INFRACTORES",
+    "ARBITRAJE",
+    "CONTRATOS",
+    "OFICIOS Y ESCRITOS GENERALES",
+    "NORMATIVA Y LEGISLACIÓN",
+    "FORMATOS GENERALES",
+    "OTROS"
+];
+
+const SUBCATEGORIAS = {
+    "CIVIL": [
+        "Servidumbre de paso",
+        "Reivindicación",
+        "Prescripción adquisitiva de dominio",
+        "Posesión",
+        "Desalojo",
+        "Incumplimiento de contrato",
+        "Cumplimiento de contrato",
+        "Resolución de contrato",
+        "Daños y perjuicios",
+        "Obligaciones",
+        "Propiedad",
+        "Derechos reales",
+        "Linderos",
+        "Interdictos",
+        "Medidas cautelares",
+        "Otros"
+    ],
+    "FAMILIA, MUJER, NIÑEZ Y ADOLESCENCIA": [
+        "Alimentos",
+        "Divorcio",
+        "Unión de hecho",
+        "Tenencia",
+        "Régimen de visitas",
+        "Patria potestad",
+        "Impugnación de paternidad",
+        "Declaración de paternidad",
+        "Curaduría",
+        "Tutela",
+        "Adopción",
+        "Otros"
+    ],
+    "LABORAL": [
+        "Despido intempestivo",
+        "Despido ineficaz",
+        "Haberes laborales",
+        "Indemnización laboral",
+        "Utilidades",
+        "Desahucio",
+        "Contrato laboral",
+        "Otros"
+    ],
+    "INQUILINATO": [
+        "Desalojo",
+        "Terminación de contrato de arrendamiento",
+        "Incumplimiento de arrendamiento",
+        "Cobro de cánones",
+        "Otros"
+    ],
+    "CONSTITUCIONAL": [
+        "Acción de protección",
+        "Hábeas corpus",
+        "Hábeas data",
+        "Acceso a la información pública",
+        "Acción por incumplimiento",
+        "Otros"
+    ],
+    "PENAL": [
+        "Denuncia",
+        "Querella",
+        "Escritos penales",
+        "Fiscalía",
+        "Medidas de protección",
+        "Otros"
+    ],
+    "TRÁNSITO": [
+        "Contravenciones",
+        "Accidentes de tránsito",
+        "Impugnaciones",
+        "Otros"
+    ],
+    "VIOLENCIA CONTRA LA MUJER Y MIEMBROS DEL NÚCLEO FAMILIAR": [
+        "Medidas de protección",
+        "Denuncia",
+        "Orden de alejamiento",
+        "Otros"
+    ],
+    "CONTENCIOSO ADMINISTRATIVO": [
+        "Impugnación de actos administrativos",
+        "Demandas contencioso administrativas",
+        "Otros"
+    ],
+    "CONTENCIOSO TRIBUTARIO": [
+        "Impugnación tributaria",
+        "Reclamos tributarios",
+        "Otros"
+    ],
+    "ADMINISTRATIVO": [
+        "Peticiones",
+        "Recursos",
+        "Solicitudes",
+        "Otros"
+    ],
+    "COACTIVAS": [
+        "Mandato de ejecución",
+        "Embargo",
+        "Remate",
+        "Otros"
+    ],
+    "GARANTÍAS PENITENCIARIAS": [
+        "Libertad condicional",
+        "Redención de pena",
+        "Hábeas corpus penitenciario",
+        "Otros"
+    ],
+    "ADOLESCENTES INFRACTORES": [
+        "Medidas socioeducativas",
+        "Internamiento",
+        " Libertad asistida",
+        "Otros"
+    ],
+    "ARBITRAJE": [
+        "Demanda arbitral",
+        "Contestación",
+        "Escritos",
+        "Prueba",
+        "Alegatos",
+        "Otros"
+    ],
+    "CONTRATOS": [
+        "Compraventa",
+        "Arrendamiento",
+        "Prestación de servicios",
+        "Contrato laboral",
+        "Contratos civiles",
+        "Contratos mercantiles",
+        "Otros"
+    ],
+    "NORMATIVA Y LEGISLACIÓN": [
+        "COGEP",
+        "Código Civil",
+        "Código del Trabajo",
+        "COIP",
+        "Constitución",
+        "Leyes",
+        "Reglamentos",
+        "Jurisprudencia"
+    ],
+    "OFICIOS Y ESCRITOS GENERALES": [
+        "Oficio",
+        "Solicitud",
+        "Petición",
+        "Escrito",
+        "Contestación",
+        "Aclaración",
+        "Otros"
+    ],
+    "FORMATOS GENERALES": [
+        "Formato de demanda",
+        "Formato de contestación",
+        "Formato de recurso",
+        "Formato de solicitud",
+        "Formato de poder",
+        "Otros"
+    ],
+    "OTROS": [
+        "Otros"
+    ]
+};
+
+const PROCEDIMIENTOS = [
+    "ORDINARIO",
+    "SUMARIO",
+    "EJECUTIVO",
+    "MONITORIO",
+    "VOLUNTARIO",
+    "CONTENCIOSO ADMINISTRATIVO",
+    "CONTENCIOSO TRIBUTARIO",
+    "CONSTITUCIONAL",
+    "PENAL",
+    "OTRO",
+    "NO APLICA"
+];
 
 let memoriaDocs = {
     documentos: {}
@@ -1182,7 +1391,7 @@ document.querySelectorAll(".entry-input").forEach(input => {
     if (documentoRestaurado) return;
 
     const key = input.id;
-    const esNombre = (key === "actor" || key === "nombre_demandado" || /^nombre_testigo[1-5]$/.test(key));
+    const esNombre = (key === "actor" || key === "actor_2" || key === "nombre_demandado" || /^nombre_testigo[1-8]$/.test(key));
     const esTipoJuicio = (key === "tipo_juicio");
 
     input.addEventListener("input", () => {
@@ -1190,22 +1399,22 @@ document.querySelectorAll(".entry-input").forEach(input => {
         const nuevoValor = input.value;
 
         if (esNombre) {
-            // 🔧 FIX PRINCIPAL: ya NO se vuelve a buscar el nombre en el
-            // documento. Se actualiza directamente el texto de todas las
-            // apariciones ya asociadas a este key (detectadas o marcadas
-            // manualmente). Mismo patrón que los campos normales: no se
-            // reconstruye el editor, no se pierde el cursor, no hay riesgo
-            // de duplicar al escribir espacios.
             const editor = document.getElementById("editor");
             const spans = editor.querySelectorAll(`span[data-key="${key}"]`);
 
             spans.forEach(span => {
                 span.textContent = nuevoValor;
+                if (nuevoValor.trim()) {
+                    span.style.background = "#bbf7d0";
+                } else {
+                    span.style.background = colorCampo(key);
+                }
             });
 
             guardarEstado();
             guardarEstadoEditor();
             programarGuardado();
+            programarGuardadoConfiguracion();
             guardarCampoEnMemoria(key, nuevoValor);
             return;
         }
@@ -1224,6 +1433,7 @@ document.querySelectorAll(".entry-input").forEach(input => {
             guardarEstado();
             guardarEstadoEditor();
             programarGuardado();
+            programarGuardadoConfiguracion();
             guardarCampoEnMemoria(key, nuevoValor);
 
             // 🔧 RE-SINCRONIZACIÓN DIFERIDA: al dejar de escribir 700 ms,
@@ -1249,15 +1459,14 @@ document.querySelectorAll(".entry-input").forEach(input => {
 
         if (!nuevoValor.trim()) {
 
-            if (spans.length) {
-                spans.forEach(span => {
-                    span.textContent = "";
-                });
-            }
+            spans.forEach(span => {
+                span.textContent = "";
+            });
 
             guardarEstado();
             guardarEstadoEditor();
             programarGuardado();
+            programarGuardadoConfiguracion();
             guardarCampoEnMemoria(key, "");
 
             return;
@@ -1265,11 +1474,13 @@ document.querySelectorAll(".entry-input").forEach(input => {
 
         spans.forEach(span => {
             span.textContent = nuevoValor;
+            span.style.background = "#bbf7d0";
         });
 
         guardarEstado();
         guardarEstadoEditor();
         programarGuardado();
+        programarGuardadoConfiguracion();
         guardarCampoEnMemoria(key, nuevoValor);
     });
 
@@ -1307,30 +1518,32 @@ document.querySelectorAll(".entry-input").forEach(input => {
             guardarUndo();
 
             if (!valor.trim()) {
-                eliminarSpansPorKey(key);
+                if (configuracionActual) {
+                    const spans = editor.querySelectorAll(`span[data-key="${key}"]`);
+                    spans.forEach(span => { span.textContent = ""; span.style.background = colorCampo(key); });
+                } else {
+                    eliminarSpansPorKey(key);
+                }
                 guardarEstado();
                 guardarEstadoEditor();
                 programarGuardado();
+                programarGuardadoConfiguracion();
                 guardarCampoEnMemoria(key, "");
                 return;
             }
 
-            // 🔧 RECONOCIMIENTO AUTOMÁTICO: si la IA dejó el nombre
-            // incompleto o con errores, al CORREGIRLO en el Entry se
-            // vuelve a buscar en el documento con el valor corregido.
-            // Se quitan primero las apariciones automáticas viejas
-            // (las marcadas a mano con data-manual se conservan), y se
-            // detectan de nuevo todas las menciones del nombre nuevo.
-            editor.querySelectorAll(`span[data-key="${key}"]:not([data-manual])`).forEach(span => {
-                span.replaceWith(document.createTextNode(span.textContent));
-            });
-            editor.normalize();
-
-            resaltarNombrePorPalabras(key, valor);
+            if (!configuracionActual) {
+                editor.querySelectorAll(`span[data-key="${key}"]:not([data-manual])`).forEach(span => {
+                    span.replaceWith(document.createTextNode(span.textContent));
+                });
+                editor.normalize();
+                resaltarNombrePorPalabras(key, valor);
+            }
 
             guardarEstado();
             guardarEstadoEditor();
             programarGuardado();
+            programarGuardadoConfiguracion();
             guardarCampoEnMemoria(key, valor);
         });
     }
@@ -1421,6 +1634,17 @@ function eliminarSpansPorKey(key, borrarTexto) {
     editor.normalize();
 }
 
+function eliminarSpansPorKeyExcepto(key, spanExcluido) {
+    const editor = document.getElementById("editor");
+    const spans = editor.querySelectorAll(`[data-key="${key}"]`);
+    spans.forEach(span => {
+        if (span !== spanExcluido) {
+            span.replaceWith(document.createTextNode(span.textContent));
+        }
+    });
+    editor.normalize();
+}
+
 // 🔧 SINCRONIZACIÓN DEL TIPO DE JUICIO CON EL ENTRY:
 // las palabras del documento que estaban resaltadas como tipo de juicio
 // 🔧 COMPROMETE la edición del Entry de tipo de juicio sobre el documento.
@@ -1430,6 +1654,25 @@ function eliminarSpansPorKey(key, borrarTexto) {
 function comprometerTipoJuicio(valor) {
     const ed = document.getElementById("editor");
     if (!ed) return;
+
+    if (configuracionActual && configuracionActual.mapeo && configuracionActual.mapeo["tipo_juicio"]) {
+        const spans = ed.querySelectorAll('span[data-key="tipo_juicio"]');
+        if (!valor.trim()) {
+            spans.forEach(span => {
+                span.textContent = "";
+            });
+        } else {
+            spans.forEach(span => {
+                span.textContent = valor;
+                span.style.background = "#bbf7d0";
+            });
+        }
+        ultimoValorTipo = String(valor || "");
+        guardarEstado();
+        guardarEstadoEditor();
+        programarGuardadoConfiguracion();
+        return;
+    }
 
     const cambio = String(valor || "") !== ultimoValorTipo;
     if (cambio) {
@@ -1581,17 +1824,43 @@ function sincronizarTipoConEntry(valor) {
 //   Direcciones: marfil   | Datos personales: rosa   | Juicio: gris
 // ============================================================
 function colorCampo(key) {
-    if (key === "actor") return "#FFD54F";
+    if (key === "actor" || key === "actor_2") return "#FFD54F";
     if (key === "nombre_demandado") return "#64B5F6";
-    if (/^nombre_testigo[1-5]$/.test(key)) return "#BA68C8";
+    if (/^nombre_testigo[1-8]$/.test(key)) return "#BA68C8";
     if (key.includes("email")) return "#81C784";
     if (key.includes("cedula")) return "#4DD0E1";
     if (key.includes("telefono")) return "#FFB74D";
     if (key.includes("objeto")) return "#E1BEE7";
-    if (key === "numero_juicio") return "#78909C";
-    if (key === "tipo_juicio") return "#90A4AE";
-    if (["age", "civil", "profesion", "ciudadania"].includes(key)) return "#F48FB1";
-    return "#D7CCC8";
+    if (/^hecho_[0-9]+$/.test(key)) return "#FFCC80";
+    if (/^hecho_defensa_[0-9]+$/.test(key)) return "#EF9A9A";
+    if (/^excepcion_/.test(key)) return "#EF9A9A";
+    if (/^pronunciamiento_/.test(key)) return "#C5E1A5";
+    if (/^(admite_|niega_|acepta_|se_opone_|no_le_consta_)/.test(key)) return "#C5E1A7";
+    if (key === "numero_juicio") return "#4FC3F7";
+    if (key === "tipo_juicio" || key === "tipo_accion") return "#7986CB";
+    if (/^(age|civil|profesion|ciudadania)(|_actor_2|_demandado)$/.test(key)) return "#F48FB1";
+    if (/^edad_demandado$/.test(key)) return "#F48FB1";
+    if (key.includes("nombre_abogado")) return "#FFD54F";
+    if (key.includes("matricula")) return "#80CBC4";
+    if (key.includes("unidad_judicial") || key.includes("juzgador")) return "#7986CB";
+    if (/^pretension_/.test(key)) return "#C5E1A5";
+    if (/^fundamento_/.test(key)) return "#B39DDB";
+    if (/^(norma_|articulo_norma_|descripcion_norma_)/.test(key)) return "#CE93D8";
+    if (/^(documento_prueba_|descripcion_prueba_|finalidad_prueba_|fecha_documento_prueba_|emisor_documento_prueba_)/.test(key)) return "#80CBC4";
+    if (/^(autenticidad_prueba_|admite_prueba_|niega_prueba_|objeta_prueba_)/.test(key)) return "#A5D6A7";
+    if (/^(nombre_perito_|cedula_perito_|profesion_perito_|especialidad_perito_|objeto_pericia_|puntos_pericia_|conclusion_pericia_|registro_perito_|correo_perito_)/.test(key)) return "#FFF176";
+    if (/^(lugar_inspeccion|objeto_inspeccion|finalidad_inspeccion|fecha_inspeccion|direccion_inspeccion|hechos_a_verificar_inspeccion)/.test(key)) return "#A5D6A7";
+    if (/cuantia|valor|intereses|danos/.test(key)) return "#FFE082";
+    if (/^(salario|ingresos_|egresos_|gastos_|carga_familiar|personas_a_cargo|numero_hijos|empresa_|cargo_trabajo|tipo_contrato|fecha_ingreso_trabajo|afiliacion_|numero_iess)/.test(key)) return "#FFE082";
+    if (/^(pension_|valor_pension|fecha_inicio_pension|fecha_fin_pension|valor_adeudado|fecha_ultimo_pago|pagos_realizados|saldo_pendiente|porcentaje_ofertado|valor_ofertado|cuota_mensual_propuesta|forma_pago_pension|plazo_pago|periodo_liquidacion|valor_ultimo_pago)/.test(key)) return "#D1C4E9";
+    if (/^(reconoce_paternidad|niega_paternidad|solicita_prueba_adn|nombre_madre|cedula_madre|nombre_padre|cedula_padre|nombre_menor|cedula_menor)/.test(key)) return "#F0F4C3";
+    if (/^(fiscal_|unidad_fiscalia|fiscalia|numero_noticia|numero_investigacion|tipo_delito|delito|fecha_delito|hora_delito|lugar_delito|ciudad_delito|provincia_delito|nombre_victima|cedula_victima|nombre_investigado)/.test(key)) return "#FFCDD2";
+    if (/^(materia_|submateria_|procedimiento_|sala_|ciudad_juicio|canton_juicio|provincia_juicio|fecha_escrito|fecha_presentacion)/.test(key)) return "#4FC3F7";
+    if (/^(correo_notificacion|casillero_electronico_)/.test(key)) return "#81C784";
+    if (/barrio|parroquia|calle|numero_casa|codigo_postal|direccion/.test(key)) return "#BCAAA4";
+    if (/provincia|canton|ciudad/.test(key) && !/juicio|juzgado/.test(key)) return "#BCAAA4";
+    if (/demandado/.test(key)) return "#64B5F6";
+    return "#D1C4E9";
 }
 
 function obtenerColor(key) {
@@ -1959,7 +2228,7 @@ document.addEventListener("click", function(e) {
 
     const selection = window.getSelection();
     const textoSeleccionado = selection.toString().trim();
-    const esNombre = (key === "actor" || key === "nombre_demandado");
+    const esNombre = (key === "actor" || key === "actor_2" || key === "nombre_demandado");
 
     if (textoSeleccionado) {
 
@@ -1970,11 +2239,7 @@ document.addEventListener("click", function(e) {
         let span = null;
 
         if (esNombre) {
-            // 🔧 FIX: la selección manual de una aparición ya NO borra
-            // las apariciones existentes ni sobrescribe el Entry con
-            // solo el texto seleccionado. Solo se agrega esta aparición
-            // como una instancia más, ligada al valor actual del Entry.
-            if (!input.value.trim()) {
+            if (!input.value.trim() && !configuracionActual) {
                 input.value = textoSeleccionado;
             }
 
@@ -1994,19 +2259,33 @@ document.addEventListener("click", function(e) {
             range.insertNode(span);
             selection.removeAllRanges();
 
-            // si el Entry ya tenía un nombre distinto al texto que
-            // acabas de seleccionar, esta nueva aparición se sincroniza
-            // con el valor actual del Entry (no con lo seleccionado),
-            // para quedar consistente con las demás apariciones del key.
             if (input.value.trim() && input.value.trim() !== textoSeleccionado) {
                 span.textContent = input.value;
             }
 
-            // 🔧 resaltar TODAS las coincidencias del nombre en el
-            // documento (igual que los campos normales): la aparición
-            // recién marcada ya está dentro de un span y se ignora,
-            // así que aquí solo se agregan las demás.
-            resaltarNombrePorPalabras(key, input.value);
+            if (configuracionActual) {
+                input.value = textoSeleccionado;
+                eliminarSpansPorKeyExcepto(key, span);
+                resaltarTodasLasCoincidencias(key, textoSeleccionado);
+            } else {
+                resaltarNombrePorPalabras(key, input.value);
+            }
+
+        } else if (configuracionActual && selection.rangeCount) {
+            const range = selection.getRangeAt(0);
+            span = document.createElement("span");
+            span.dataset.key = key;
+            span.dataset.manual = "true";
+            span.style.background = colorCampo(key);
+            span.setAttribute("contenteditable", "false");
+            const contenido = range.extractContents();
+            span.appendChild(contenido);
+            range.insertNode(span);
+            selection.removeAllRanges();
+
+            input.value = textoSeleccionado;
+            eliminarSpansPorKeyExcepto(key, span);
+            resaltarTodasLasCoincidencias(key, textoSeleccionado);
 
         } else {
             input.value = textoSeleccionado;
@@ -2018,6 +2297,19 @@ document.addEventListener("click", function(e) {
         guardarEstadoEditor();
         guardarEnServidor();
         guardarCampoEnMemoria(key, input.value);
+
+        if (configuracionActual && configuracionActual.mapeo) {
+            if (textoSeleccionado) {
+                if (!configuracionActual.mapeo[key]) configuracionActual.mapeo[key] = [];
+                configuracionActual.mapeo[key] = configuracionActual.mapeo[key].filter(m => m !== textoSeleccionado);
+                configuracionActual.mapeo[key].push(textoSeleccionado);
+                if (!configuracionActual.resaltados) configuracionActual.resaltados = {};
+                configuracionActual.resaltados[textoSeleccionado] = true;
+            } else {
+                configuracionActual.mapeo[key] = [];
+            }
+            programarGuardadoConfiguracion();
+        }
 
         const idM = idMemoria(); // 🔧 FIX: antes archivoActual (nombre de archivo)
         if (idM) {
@@ -2053,6 +2345,15 @@ document.addEventListener("click", function(e) {
     eliminarSpansPorKey(key);
 
     input.value = "";
+
+    if (configuracionActual && configuracionActual.mapeo && configuracionActual.mapeo[key]) {
+        if (!configuracionActual.resaltados) configuracionActual.resaltados = {};
+        configuracionActual.mapeo[key].forEach(m => {
+            configuracionActual.resaltados[m] = false;
+        });
+        configuracionActual.mapeo[key] = [];
+        programarGuardadoConfiguracion();
+    }
 
     guardarEstado();
     guardarEstadoEditor();
@@ -2167,7 +2468,30 @@ function generarDocumento() {
     URL.revokeObjectURL(url);
 }
 
-let modo = "actor";
+let modo = "actor1";
+
+const PAGINAS = ["actor1", "actor2", "demandado", "hechos", "testigos", "otros", "pruebas", "pretensiones", "fundamentos", "proceso", "notificaciones", "excepciones", "pronunciamiento", "laboral"];
+const BLOQUES_TESTIGO = ["bloque-testigo1", "bloque-testigo2", "bloque-testigo3", "bloque-testigo4", "bloque-testigo5", "bloque-testigo6", "bloque-testigo7", "bloque-testigo8"];
+let testigoActual = 0;
+
+function mostrarTestigo(idx) {
+    BLOQUES_TESTIGO.forEach((id, i) => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = (i === idx) ? "block" : "none";
+    });
+    const titulo = document.getElementById("testigos-titulo");
+    if (titulo) titulo.textContent = `Prueba Testimonial — Testigo ${idx + 1} de ${BLOQUES_TESTIGO.length}`;
+}
+
+function mostrarPagina(nombre) {
+    PAGINAS.forEach(p => {
+        const el = document.getElementById("pagina-" + p);
+        if (el) el.style.display = (p === nombre) ? "block" : "none";
+    });
+    if (nombre === "testigos") {
+        mostrarTestigo(testigoActual);
+    }
+}
 
 document.addEventListener("DOMContentLoaded", () => {
 
@@ -2176,96 +2500,1113 @@ document.addEventListener("DOMContentLoaded", () => {
     cargarInstrucciones();
     cargarChat();
 
-    const actor = document.getElementById("bloque-actor");
-    const demandado = document.getElementById("bloque-demandado");
-    const testigo1 = document.getElementById("bloque-testigo1");
-    const testigo2 = document.getElementById("bloque-testigo2");
-    const testigo3 = document.getElementById("bloque-testigo3");
-    const testigo4 = document.getElementById("bloque-testigo4");
-    const testigo5 = document.getElementById("bloque-testigo5");
-
-    actor.style.display = "block";
-    demandado.style.display = "none";
-    testigo1.style.display = "none";
-    testigo2.style.display = "none";
-    testigo3.style.display = "none";
-    testigo4.style.display = "none";
-    testigo5.style.display = "none";
+    mostrarPagina("actor1");
 
     window.siguiente = function () {
-        if (modo === "actor") {
-            actor.style.display = "none";
-            demandado.style.display = "block";
-            modo = "demandado";
+        if (modo === "testigos") {
+            if (testigoActual < BLOQUES_TESTIGO.length - 1) {
+                testigoActual++;
+                mostrarTestigo(testigoActual);
+                return;
+            }
         }
-        else if (modo === "demandado") {
-            demandado.style.display = "none";
-            testigo1.style.display = "block";
-            modo = "testigo1";
-        }
-        else if (modo === "testigo1") {
-            testigo1.style.display = "none";
-            testigo2.style.display = "block";
-            modo = "testigo2";
-        }
-        else if (modo === "testigo2") {
-            testigo2.style.display = "none";
-            testigo3.style.display = "block";
-            modo = "testigo3";
-        }
-        else if (modo === "testigo3") {
-            testigo3.style.display = "none";
-            testigo4.style.display = "block";
-            modo = "testigo4";
-        }
-        else if (modo === "testigo4") {
-            testigo4.style.display = "none";
-            testigo5.style.display = "block";
-            modo = "testigo5";
-        }
-        else if (modo === "testigo5") {
-            testigo5.style.display = "none";
-            actor.style.display = "block";
-            modo = "actor";
-        }
+        const idx = PAGINAS.indexOf(modo);
+        const next = (idx + 1) % PAGINAS.length;
+        modo = PAGINAS[next];
+        mostrarPagina(modo);
     };
 
     window.anterior = function () {
-        if (modo === "actor") {
-            actor.style.display = "none";
-            testigo5.style.display = "block";
-            modo = "testigo5";
+        if (modo === "testigos") {
+            if (testigoActual > 0) {
+                testigoActual--;
+                mostrarTestigo(testigoActual);
+                return;
+            }
         }
-        else if (modo === "testigo5") {
-            testigo5.style.display = "none";
-            testigo4.style.display = "block";
-            modo = "testigo4";
-        }
-        else if (modo === "testigo4") {
-            testigo4.style.display = "none";
-            testigo3.style.display = "block";
-            modo = "testigo3";
-        }
-        else if (modo === "testigo3") {
-            testigo3.style.display = "none";
-            testigo2.style.display = "block";
-            modo = "testigo2";
-        }
-        else if (modo === "testigo2") {
-            testigo2.style.display = "none";
-            testigo1.style.display = "block";
-            modo = "testigo1";
-        }
-        else if (modo === "testigo1") {
-            testigo1.style.display = "none";
-            demandado.style.display = "block";
-            modo = "demandado";
-        }
-        else if (modo === "demandado") {
-            demandado.style.display = "none";
-            actor.style.display = "block";
-            modo = "actor";
-        }
+        const idx = PAGINAS.indexOf(modo);
+        const prev = (idx - 1 + PAGINAS.length) % PAGINAS.length;
+        modo = PAGINAS[prev];
+        mostrarPagina(modo);
     };
 
 });
+
+// ============================================================
+// 📚 REPOSITORIO DE DOCUMENTOS BASE
+// ============================================================
+
+function toggleRepositorio() {
+    const panel = document.getElementById("repositorioPanel");
+    const flecha = document.getElementById("repoFlecha");
+    if (panel.classList.contains("abierto")) {
+        panel.classList.remove("abierto");
+        flecha.textContent = "▼";
+    } else {
+        panel.classList.add("abierto");
+        flecha.textContent = "▲";
+        cargarDocumentosBase();
+    }
+}
+
+async function cargarDocumentosBase() {
+    const lista = document.getElementById("repoLista");
+    lista.innerHTML = '<div class="repo-empty">Cargando...</div>';
+
+    try {
+        const resp = await fetch("/api/documentos-base");
+        if (!resp.ok) throw new Error("Error al cargar");
+        const data = await resp.json();
+        documentosBaseCache = data.documentos || [];
+        inicializarFiltroCategorias();
+        renderizarDocumentosBase();
+    } catch (e) {
+        console.error(e);
+        lista.innerHTML = '<div class="repo-empty">Error al cargar documentos</div>';
+    }
+}
+
+function renderizarDocumentosBase() {
+    const lista = document.getElementById("repoLista");
+    const busqueda = (document.getElementById("repoBusqueda")?.value || "").toLowerCase().trim();
+    const cat = repoCategoriaActual;
+
+    let filtrados = documentosBaseCache.filter(doc => {
+        if (cat !== "TODOS" && doc.categoria !== cat) return false;
+        if (busqueda) {
+            const texto = ((doc.nombre || "") + " " + (doc.categoria || "") + " " + (doc.subcategoria || "") + " " + (doc.procedimiento || "") + " " + (doc.descripcion || "")).toLowerCase();
+            if (!texto.includes(busqueda)) return false;
+        }
+        return true;
+    }).sort((a, b) => (a.nombre || "").localeCompare(b.nombre || "", "es"));
+
+    if (filtrados.length === 0) {
+        lista.innerHTML = '<div class="repo-empty">No se encontraron documentos</div>';
+        return;
+    }
+
+    lista.innerHTML = filtrados.map(doc => {
+        const sel = docBaseSeleccionado && docBaseSeleccionado.id === doc.id;
+        const clase = sel ? "repo-item seleccionado" : "repo-item";
+        const badge = doc.tiene_datos ? '<span class="repo-item-badge">Configurado</span>' : '<span class="repo-item-badge" style="background:#fef3c7;color:#92400e;">Sin configurar</span>';
+        const catSub = [doc.categoria, doc.subcategoria].filter(Boolean).join(" › ");
+        const proc = doc.procedimiento ? ` — ${doc.procedimiento}` : "";
+        return `
+            <div class="${clase}" onclick="marcarDocumentoBase('${doc.id}')">
+                <span class="repo-item-icono">📄</span>
+                <div class="repo-item-info">
+                    <div class="repo-item-nombre">${doc.nombre || doc.archivo_nombre}</div>
+                    <div class="repo-item-cat">${catSub}${proc}${doc.descripcion ? " — " + doc.descripcion : ""}</div>
+                </div>
+                ${badge}
+            </div>
+        `;
+    }).join("");
+}
+
+function filtrarDocumentosBase() {
+    renderizarDocumentosBase();
+}
+
+function filtrarCategoria(cat, btn) {
+    repoCategoriaActual = cat;
+    document.querySelectorAll(".repo-cat-btn").forEach(b => b.classList.remove("activa"));
+    if (btn) btn.classList.add("activa");
+    renderizarDocumentosBase();
+}
+
+function marcarDocumentoBase(docId) {
+    docBaseSeleccionado = documentosBaseCache.find(d => d.id === docId) || null;
+    renderizarDocumentosBase();
+}
+
+function seleccionarDocumentoBase() {
+    if (!docBaseSeleccionado) {
+        alert("Seleccione un documento base.");
+        return;
+    }
+    abrirDocumentoBase(docBaseSeleccionado);
+}
+
+async function abrirDocumentoBase(doc) {
+    if (!doc) {
+        alert("Seleccione un documento base.");
+        return;
+    }
+
+    try {
+        const resp = await fetch(`/api/documentos-base/${doc.id}/abrir`, { method: "POST" });
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            throw new Error(err.detail || "Error al abrir documento base");
+        }
+        const data = await resp.json();
+
+        documentoBaseId = data.documento_base_id || doc.id;
+        casoId = data.caso_id || "";
+        documentoId = data.documento_id || "";
+        archivoActual = doc.archivo_nombre || doc.nombre;
+
+        document.querySelectorAll(".entry-input").forEach(input => { input.value = ""; });
+        ultimoValorTipo = "";
+
+        const textoPlano = data.texto || "";
+        const htmlDocumento = textoPlanoToHtml(textoPlano);
+        document.getElementById("editor").innerHTML = htmlDocumento;
+
+        const marcadores = detectarMarcadores(textoPlano);
+        let mapeo = {};
+        let resaltados = {};
+        let tieneMapeoGuardado = false;
+
+        const configGuardada = data.config;
+        if (configGuardada && configGuardada.mapeo && Object.keys(configGuardada.mapeo).length > 0) {
+            mapeo = configGuardada.mapeo;
+            resaltados = configGuardada.resaltados || {};
+            tieneMapeoGuardado = true;
+            console.log("[MEMORIA] Configuración cargada desde Google Drive:", Object.keys(mapeo).length, "entradas");
+            console.log("[MEMORIA] Resaltados restaurados:", Object.keys(resaltados).length, "marcadores");
+            console.log("[MEMORIA] Restaurando Entries...");
+        } else {
+            console.log("[MEMORIA] No hay configuración guardada. Ejecutando detección dinámica...");
+            console.log("[MEMORIA] Documento ID:", doc.id);
+            console.log("[MEMORIA] Buscando configuración en Drive...");
+            console.log("[MEMORIA] Configuración no encontrada. Detectando marcadores...");
+            marcadores.forEach(m => {
+                const entryId = mapearVariableAEntrada(m.contenido);
+                if (entryId) {
+                    if (!mapeo[entryId]) mapeo[entryId] = [];
+                    mapeo[entryId].push(m.original);
+                    resaltados[m.original] = true;
+                }
+            });
+            console.log("[MEMORIA] Detección dinámica:", Object.keys(mapeo).length, "entradas");
+        }
+
+        configuracionActual = { marcadores, mapeo, resaltados, tieneMapeoGuardado };
+
+        Object.keys(mapeo).forEach(entryId => {
+            const input = document.getElementById(entryId);
+            if (!input || input.value.trim()) return;
+            if (!mapeo[entryId] || mapeo[entryId].length === 0) return;
+            const marcador = mapeo[entryId][0];
+            if (resaltados && resaltados[marcador] === false) return;
+            input.value = marcador.replace(/^\[|\]$/g, '');
+        });
+
+        resaltarMarcadoresBase(mapeo, resaltados);
+        marcarEntriesConVariables(mapeo);
+
+        if (!tieneMapeoGuardado && Object.keys(mapeo).length > 0) {
+            console.log("[MEMORIA] Guardando configuración inicial automáticamente...");
+            await guardarConfiguracionEnDrive();
+        }
+
+        toggleRepositorio();
+    } catch (e) {
+        console.error("Error abriendo doc base:", e);
+        alert("Error al abrir documento base: " + e.message);
+    }
+}
+
+let timerGuardarConfig = null;
+let guardadoConfigPendiente = false;
+
+function programarGuardadoConfiguracion() {
+    if (!configuracionActual || !documentoBaseId) return;
+    guardadoConfigPendiente = true;
+    if (timerGuardarConfig) clearTimeout(timerGuardarConfig);
+    timerGuardarConfig = setTimeout(() => {
+        timerGuardarConfig = null;
+        guardarConfiguracionEnDrive();
+    }, 1000);
+}
+
+async function guardarConfiguracionEnDrive() {
+    if (!documentoBaseId || !configuracionActual || !configuracionActual.mapeo) return;
+
+    const mapeo = configuracionActual.mapeo;
+    const resaltados = configuracionActual.resaltados || {};
+
+    try {
+        console.log("[MEMORIA] Cambio detectado");
+        console.log("[MEMORIA] Documento ID:", documentoBaseId);
+        console.log("[MEMORIA] Preparando configuración:", Object.keys(mapeo).length, "entradas,", Object.keys(resaltados).length, "resaltados");
+        console.log("[MEMORIA] Enviando configuración al backend...");
+        const resp = await fetch(`/api/documentos-base/${documentoBaseId}/guardar-configuracion`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ mapeo, resaltados })
+        });
+
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            throw new Error(err.detail || "Error al guardar");
+        }
+
+        const result = await resp.json();
+        configuracionActual.tieneMapeoGuardado = true;
+        guardadoConfigPendiente = false;
+        console.log("[MEMORIA] Google Drive respondió correctamente");
+        console.log("[MEMORIA] Carpeta:", result.carpeta_doc || "OK");
+        console.log("[MEMORIA] Configuración guardada");
+    } catch (e) {
+        console.error("[MEMORIA ERROR] Error guardando configuración:", e.message || e);
+        guardadoConfigPendiente = true;
+        setTimeout(() => guardarConfiguracionEnDrive(), 5000);
+    }
+}
+
+function textoPlanoToHtml(texto) {
+    if (!texto) return "";
+    return texto
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .split("\n")
+        .map(line => line.trim() ? `<p style="margin:0 0 4px 0;">${line}</p>` : `<br>`)
+        .join("");
+}
+
+function detectarMarcadores(texto) {
+    const regex = /\[([^\]]+)\]/g;
+    let match;
+    const vistas = new Set();
+    const resultado = [];
+    while ((match = regex.exec(texto)) !== null) {
+        const contenido = match[1].trim();
+        if (!contenido) continue;
+        if (vistas.has(match[0])) continue;
+        vistas.add(match[0]);
+        resultado.push({ original: match[0], contenido });
+    }
+    return resultado;
+}
+
+function mapearVariableAEntrada(contenido) {
+    const c = contenido.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+    if (/nombre.*(actor\s*2|segundo\s*actor)/.test(c)) return "actor_2";
+    if (/cedula.*(actor\s*2|segundo\s*actor)/.test(c)) return "cedula_actor_2";
+    if (/(edad|de\s*edad).*(actor\s*2|segundo\s*actor)/.test(c)) return "age_actor_2";
+    if (/estado\s*civil.*(actor\s*2|segundo\s*actor)/.test(c)) return "civil_actor_2";
+    if (/(profesion|ocupacion).*(actor\s*2|segundo\s*actor)/.test(c)) return "profesion_actor_2";
+    if (/(ciudadania|nacionalidad).*(actor\s*2|segundo\s*actor)/.test(c)) return "ciudadania_actor_2";
+    if (/(correo|email).*(actor\s*2|segundo\s*actor)/.test(c)) return "email_actor_2";
+    if (/(telefono|celular|contacto).*(actor\s*2|segundo\s*actor)/.test(c)) return "telefono_actor_2";
+    if (/parroquia.*(actor\s*2|segundo\s*actor)/.test(c)) return "parroquia_actor_2";
+    if (/barrio.*(actor\s*2|segundo\s*actor)/.test(c)) return "barrio_actor_2";
+    if (/calle\s*principal.*(actor\s*2|segundo\s*actor)/.test(c)) return "calle_principal_actor_2";
+    if (/calle\s*secundaria.*(actor\s*2|segundo\s*actor)/.test(c)) return "calle_secundaria_actor_2";
+    if (/(numero.*casa|nro.*casa).*(actor\s*2|segundo\s*actor)/.test(c)) return "numero_casa_actor_2";
+    if (/codigo\s*postal.*(actor\s*2|segundo\s*actor)/.test(c)) return "codigo_postal_actor_2";
+    if (/(direccion|domicilio).*(actor\s*2|segundo\s*actor)/.test(c)) return "direccion_domiciliaria_actor_2";
+    if (/casillero.*(actor\s*2|segundo\s*actor)/.test(c)) return "casillero_judicial_actor_2";
+    if (/provincia.*(actor\s*2|segundo\s*actor)/.test(c)) return "provincia_actor_2";
+    if (/(canton).*(actor\s*2|segundo\s*actor)/.test(c)) return "canton_actor_2";
+    if (/ciudad.*(actor\s*2|segundo\s*actor)/.test(c)) return "ciudad_actor_2";
+
+    if (/nombre.*(actor|demandante|reclamante|solicitante)/.test(c)) return "actor";
+    if (/cedula.*(actor|demandante)/.test(c)) return "cedula";
+
+    if (/nombre.*(testigo)/.test(c)) {
+        const num = contenido.match(/(\d+)/);
+        return num ? `nombre_testigo${num[1]}` : "nombre_testigo1";
+    }
+    if (/cedula.*(testigo)/.test(c)) {
+        const num = contenido.match(/(\d+)/);
+        return num ? `cedula_testigo${num[1]}` : "cedula_testigo1";
+    }
+    if (/(ciudad).*(testigo)/.test(c)) {
+        const num = contenido.match(/(\d+)/);
+        return num ? `ciudad_testigo${num[1]}` : "ciudad_testigo1";
+    }
+    if (/(provincia).*(testigo)/.test(c)) {
+        const num = contenido.match(/(\d+)/);
+        return num ? `provincia_testigo${num[1]}` : "provincia_testigo1";
+    }
+    if (/(canton).*(testigo)/.test(c)) {
+        const num = contenido.match(/(\d+)/);
+        return num ? `canton_testigo${num[1]}` : "canton_testigo1";
+    }
+    if (/(parroquia).*(testigo)/.test(c)) {
+        const num = contenido.match(/(\d+)/);
+        return num ? `parroquia_testigo${num[1]}` : "parroquia_testigo1";
+    }
+    if (/(barrio).*(testigo)/.test(c)) {
+        const num = contenido.match(/(\d+)/);
+        return num ? `barrio_testigo${num[1]}` : "barrio_testigo1";
+    }
+    if (/(direccion|domicilio).*(testigo)/.test(c)) {
+        const num = contenido.match(/(\d+)/);
+        return num ? `direccion_testigo${num[1]}` : "direccion_testigo1";
+    }
+    if (/(correo|email).*(testigo)/.test(c)) {
+        const num = contenido.match(/(\d+)/);
+        return num ? `email_testigo${num[1]}` : "email_testigo1";
+    }
+    if (/(telefono|celular).*(testigo)/.test(c)) {
+        const num = contenido.match(/(\d+)/);
+        return num ? `telefono_testigo${num[1]}` : "telefono_testigo1";
+    }
+    if (/(edad).*(testigo)/.test(c)) {
+        const num = contenido.match(/(\d+)/);
+        return num ? `edad_testigo${num[1]}` : "edad_testigo1";
+    }
+    if (/(profesion|ocupacion).*(testigo)/.test(c)) {
+        const num = contenido.match(/(\d+)/);
+        return num ? `profesion_testigo${num[1]}` : "profesion_testigo1";
+    }
+    if (/(nacionalidad|ciudadania).*(testigo)/.test(c)) {
+        const num = contenido.match(/(\d+)/);
+        return num ? `nacionalidad_testigo${num[1]}` : "nacionalidad_testigo1";
+    }
+    if (/(hechos|declar|objeto|sobre.*declara)/.test(c) && /testigo/.test(c)) {
+        const num = contenido.match(/(\d+)/);
+        return num ? `objeto_testigo${num[1]}` : "objeto_testigo1";
+    }
+
+    if (/nombre.*(demandado|recurso|opositor)/.test(c)) return "nombre_demandado";
+    if (/cedula.*(demandado)/.test(c)) return "cedula_demandado";
+
+    if (/edad.*(demandado)/.test(c)) return "edad_demandado";
+    if (/^(edad|de\s*edad)$/.test(c)) return "age";
+    if (/^(edad|de\s*edad)\s*(del|del\s*demandado)/.test(c)) return "edad_demandado";
+    if (/estado\s*civil/.test(c) && /demandado/.test(c)) return "civil_demandado";
+    if (/estado\s*civil/.test(c)) return "civil";
+    if (/(profesion|ocupacion)/.test(c) && /demandado/.test(c)) return "profesion_demandado";
+    if (/(profesion|ocupacion)/.test(c)) return "profesion";
+    if (/(ciudadania|nacionalidad)/.test(c) && /demandado/.test(c)) return "ciudadania_demandado";
+    if (/(ciudadania|nacionalidad)/.test(c)) return "ciudadania";
+
+    if (/(correo|email)/.test(c) && /demandado/.test(c)) return "email_demandado";
+    if (/(correo|email)/.test(c)) return "email";
+
+    if (/(direccion|domicilio)/.test(c) && /citacion/.test(c)) return "direccion_citacion_demandado";
+    if (/(direccion|domicilio)/.test(c) && /demandado/.test(c)) return "parroquia_demandado";
+    if (/(direccion|domicilio)/.test(c) && /actor/.test(c) && !/actor\s*2|segundo/.test(c)) return "direccion_domiciliaria_actor";
+    if (/(direccion|domicilio)/.test(c)) return "parroquia_actor";
+
+    if (/parroquia/.test(c) && /demandado/.test(c)) return "parroquia_demandado";
+    if (/parroquia/.test(c)) return "parroquia_actor";
+    if (/barrio/.test(c) && /demandado/.test(c)) return "barrio_demandado";
+    if (/barrio/.test(c)) return "barrio_actor";
+    if (/calle\s*principal/.test(c) && /demandado/.test(c)) return "calle_principal_demandado";
+    if (/calle\s*principal/.test(c)) return "calle_principal_actor";
+    if (/calle\s*secundaria/.test(c) && /demandado/.test(c)) return "calle_secundaria_demandado";
+    if (/calle\s*secundaria/.test(c)) return "calle_secundaria_actor";
+    if (/(numero.*casa|nro.*casa)/.test(c) && /demandado/.test(c)) return "numero_casa_demandado";
+    if (/(numero.*casa|nro.*casa)/.test(c)) return "numero_casa_actor";
+    if (/codigo\s*postal/.test(c) && /demandado/.test(c)) return "codigo_postal_demandado";
+    if (/codigo\s*postal/.test(c)) return "codigo_postal_actor";
+
+    if (/(telefono|celular|contacto)/.test(c) && /demandado/.test(c)) return "telefono_demandado";
+    if (/(telefono|celular|contacto)/.test(c)) return "telefono_actor";
+
+    if (/casillero/.test(c) && /actor\s*2|segundo.*actor/.test(c)) return "casillero_judicial_actor_2";
+    if (/casillero/.test(c) && /actor/.test(c)) return "casillero_judicial_actor";
+    if (/casillero/.test(c) && /demandado/.test(c)) return "casillero_judicial_demandado";
+    if (/casillero/.test(c)) return "casillero_judicial_actor";
+
+    if (/numero.*juicio|expediente|radi/.test(c)) return "numero_juicio";
+    if (/tipo.*juicio/.test(c)) return "tipo_juicio";
+    if (/unidad\s*judicial/.test(c)) return "unidad_judicial_top";
+    if (/juzgador|juez|juzgado/.test(c)) return "juzgador";
+
+    if (/abogado|apoderado|defensor/.test(c)) return "nombre_abogado";
+    if (/mat.*foro|matricula/.test(c)) return "matricula_abogado";
+    if (/cedula/.test(c) && /abogado/.test(c)) return "cedula_abogado";
+    if (/(correo|email)/.test(c) && /abogado/.test(c)) return "correo_abogado";
+    if (/(telefono|celular)/.test(c) && /abogado/.test(c)) return "telefono_abogado";
+    if (/direccion/.test(c) && /abogado/.test(c)) return "direccion_abogado";
+    if (/casillero/.test(c) && /abogado/.test(c)) return "casillero_judicial_abogado";
+    if (/tipo/.test(c) && /patrocinio/.test(c)) return "tipo_patrocinio";
+
+    // ==================== PROCESO ====================
+    if (/numero.*juicio|expediente|radi/.test(c)) return "numero_juicio";
+    if (/tipo.*juicio/.test(c)) return "tipo_juicio";
+    if (/tipo.*accion/.test(c)) return "tipo_accion";
+    if (/materia/.test(c) && !/prueba/.test(c)) return "materia_proceso";
+    if (/submateria/.test(c)) return "submateria_proceso";
+    if (/cuantia/.test(c) && /total/.test(c)) return "cuantia_total";
+    if (/cuantia/.test(c)) return "cuantia";
+    if (/procedimiento/.test(c) && /tipo/.test(c)) return "procedimiento_tipo";
+    if (/unidad\s*judicial/.test(c)) return "unidad_judicial_top";
+    if (/juzgador|juez|juzgado/.test(c)) return "juzgador";
+    if (/sala/.test(c) && /juzgado|audiencia/.test(c)) return "sala_juzgado";
+    if (/ciudad/.test(c) && /juicio|juzgado/.test(c)) return "ciudad_juicio";
+    if (/canton/.test(c) && /juicio/.test(c)) return "canton_juicio";
+    if (/provincia/.test(c) && /juicio/.test(c)) return "provincia_juicio";
+    if (/fecha/.test(c) && /escrito/.test(c)) return "fecha_escrito";
+    if (/fecha/.test(c) && /(presentacion|radicacion|ingreso)/.test(c)) return "fecha_presentacion";
+
+    // ==================== NOTIFICACIONES ====================
+    if (/(correo|email).*(notificacion|notificar)/.test(c)) return "correo_notificacion";
+    if (/casillero/.test(c) && /electronico/.test(c) && /actor/.test(c) && /actor\s*2|segundo/.test(c)) return "casillero_electronico_actor_2";
+    if (/casillero/.test(c) && /electronico/.test(c) && /actor/.test(c)) return "casillero_electronico_actor";
+    if (/casillero/.test(c) && /electronico/.test(c) && /demandado/.test(c)) return "casillero_electronico_demandado";
+    if (/casillero/.test(c) && /electronico/.test(c)) return "casillero_electronico_actor";
+
+    // ==================== PRETENSIONES ====================
+    if (/pretension/.test(c) && /principal/.test(c)) return "pretension_principal";
+    if (/pretension/.test(c) && /subsidiar/.test(c)) return "pretension_subsidiaria";
+    if (/pretension/.test(c) && /alternat/.test(c)) return "pretension_alternativa";
+    if (/peticion/.test(c) && /final/.test(c)) return "peticion_final";
+    if (/pretension/.test(c)) {
+        const num2 = contenido.match(/(\d+)/);
+        return num2 ? `pretension_${num2[1]}` : "pretension_1";
+    }
+
+    // ==================== FUNDAMENTOS ====================
+    if (/fundamento/.test(c)) {
+        const num2 = contenido.match(/(\d+)/);
+        return num2 ? `fundamento_derecho_${num2[1]}` : "fundamento_derecho_1";
+    }
+
+    // ==================== NORMAS / ARTICULOS ====================
+    if (/descripcion/.test(c) && /norma/.test(c)) {
+        const num2 = contenido.match(/(\d+)/);
+        return num2 ? `descripcion_norma_${num2[1]}` : "descripcion_norma_1";
+    }
+    if (/articulo/.test(c) && /norma/.test(c)) {
+        const num2 = contenido.match(/(\d+)/);
+        return num2 ? `articulo_norma_${num2[1]}` : "articulo_norma_1";
+    }
+    if (/norma/.test(c)) {
+        const num2 = contenido.match(/(\d+)/);
+        return num2 ? `norma_${num2[1]}` : "norma_1";
+    }
+    if (/articulo/.test(c)) {
+        const num2 = contenido.match(/(\d+)/);
+        return num2 ? `articulo_norma_${num2[1]}` : "articulo_norma_1";
+    }
+
+    // ==================== HECHOS (N genérico) ====================
+    if (/hecho/.test(c) && /defensa/.test(c)) {
+        const num2 = contenido.match(/(\d+)/);
+        return num2 ? `hecho_defensa_${num2[1]}` : "hecho_defensa_1";
+    }
+    if (/hecho/.test(c)) {
+        const num2 = contenido.match(/(\d+)/);
+        return num2 ? `hecho_${num2[1]}` : "hecho_1";
+    }
+
+    // ==================== EXCEPCIONES (N genérico) ====================
+    if (/excepcion/.test(c) && /previa/.test(c)) {
+        const num2 = contenido.match(/(\d+)/);
+        return num2 ? `excepcion_previa_${num2[1]}` : "excepcion_previa_1";
+    }
+    if (/excepcion/.test(c) && /prescripcion/.test(c)) return "excepcion_prescripcion";
+    if (/excepcion/.test(c) && /caducidad/.test(c)) return "excepcion_caducidad";
+    if (/excepcion/.test(c) && /cosa.*juzgada/.test(c)) return "excepcion_cosa_juzgada";
+    if (/excepcion/.test(c) && /litispendencia/.test(c)) return "excepcion_litispendencia";
+    if (/excepcion/.test(c) && /transaccion/.test(c)) return "excepcion_transaccion";
+    if (/excepcion/.test(c) && /convenio.*arbitral/.test(c)) return "excepcion_convenio_arbitral";
+    if (/excepcion/.test(c) && /inadecuad/.test(c)) return "excepcion_inadecuacion_procedimiento";
+    if (/excepcion/.test(c) && /indebida.*acumulacion/.test(c)) return "excepcion_indebida_acumulacion";
+    if (/excepcion/.test(c) && /falta.*legitimacion/.test(c)) return "excepcion_falta_legitimacion";
+    if (/excepcion/.test(c)) {
+        const num2 = contenido.match(/(\d+)/);
+        return num2 ? `excepcion_${num2[1]}` : "excepcion_1";
+    }
+
+    // ==================== PRONUNCIAMIENTO (N genérico) ====================
+    if (/pronunciamiento/.test(c) && /pretension/.test(c)) {
+        const num2 = contenido.match(/(\d+)/);
+        return num2 ? `pronunciamiento_pretension_${num2[1]}` : "pronunciamiento_pretension_1";
+    }
+    if (/pronunciamiento/.test(c) && /hecho/.test(c)) {
+        const num2 = contenido.match(/(\d+)/);
+        return num2 ? `pronunciamiento_hecho_${num2[1]}` : "pronunciamiento_hecho_1";
+    }
+    if (/admite/.test(c) && /pretension/.test(c)) {
+        const num2 = contenido.match(/(\d+)/);
+        return num2 ? `admite_pretension_${num2[1]}` : "admite_pretension_1";
+    }
+    if (/(niega|rechaza)/.test(c) && /pretension/.test(c)) {
+        const num2 = contenido.match(/(\d+)/);
+        return num2 ? `niega_pretension_${num2[1]}` : "niega_pretension_1";
+    }
+    if (/acepta/.test(c) && /pretension/.test(c)) {
+        const num2 = contenido.match(/(\d+)/);
+        return num2 ? `acepta_pretension_${num2[1]}` : "acepta_pretension_1";
+    }
+    if (/opone/.test(c) && /pretension/.test(c)) {
+        const num2 = contenido.match(/(\d+)/);
+        return num2 ? `se_opone_pretension_${num2[1]}` : "se_opone_pretension_1";
+    }
+    if (/admite/.test(c) && /hecho/.test(c)) {
+        const num2 = contenido.match(/(\d+)/);
+        return num2 ? `admite_hecho_${num2[1]}` : "admite_hecho_1";
+    }
+    if (/(niega|rechaza)/.test(c) && /hecho/.test(c)) {
+        const num2 = contenido.match(/(\d+)/);
+        return num2 ? `niega_hecho_${num2[1]}` : "niega_hecho_1";
+    }
+    if (/no.*le.*consta/.test(c) && /hecho/.test(c)) {
+        const num2 = contenido.match(/(\d+)/);
+        return num2 ? `no_le_consta_hecho_${num2[1]}` : "no_le_consta_hecho_1";
+    }
+
+    // ==================== PRUEBA DOCUMENTAL (N genérico) ====================
+    if (/descripcion/.test(c) && /prueba/.test(c)) {
+        const num2 = contenido.match(/(\d+)/);
+        return num2 ? `descripcion_prueba_${num2[1]}` : "descripcion_prueba_1";
+    }
+    if (/finalidad/.test(c) && /prueba/.test(c)) {
+        const num2 = contenido.match(/(\d+)/);
+        return num2 ? `finalidad_prueba_${num2[1]}` : "finalidad_prueba_1";
+    }
+    if (/fecha/.test(c) && /documento.*prueba/.test(c)) {
+        const num2 = contenido.match(/(\d+)/);
+        return num2 ? `fecha_documento_prueba_${num2[1]}` : "fecha_documento_prueba_1";
+    }
+    if (/emisor/.test(c) && /documento.*prueba/.test(c)) {
+        const num2 = contenido.match(/(\d+)/);
+        return num2 ? `emisor_documento_prueba_${num2[1]}` : "emisor_documento_prueba_1";
+    }
+    if (/documento.*prueba/.test(c)) {
+        const num2 = contenido.match(/(\d+)/);
+        return num2 ? `documento_prueba_${num2[1]}` : "documento_prueba_1";
+    }
+
+    // ==================== AUTENTICIDAD / ADMITE / NIEGA / OBJETA PRUEBA ====================
+    if (/autenticidad/.test(c) && /prueba/.test(c)) {
+        const num2 = contenido.match(/(\d+)/);
+        return num2 ? `autenticidad_prueba_${num2[1]}` : "autenticidad_prueba_1";
+    }
+    if (/admite/.test(c) && /prueba/.test(c) && !/pretension/.test(c)) {
+        const num2 = contenido.match(/(\d+)/);
+        return num2 ? `admite_prueba_${num2[1]}` : "admite_prueba_1";
+    }
+    if (/(niega|rechaza)/.test(c) && /prueba/.test(c) && !/pretension/.test(c)) {
+        const num2 = contenido.match(/(\d+)/);
+        return num2 ? `niega_prueba_${num2[1]}` : "niega_prueba_1";
+    }
+    if (/objeta/.test(c) && /prueba/.test(c)) {
+        const num2 = contenido.match(/(\d+)/);
+        return num2 ? `objeta_prueba_${num2[1]}` : "objeta_prueba_1";
+    }
+
+    // ==================== PERITOS (N genérico) ====================
+    if (/nombre/.test(c) && /perito/.test(c)) {
+        const num2 = contenido.match(/(\d+)/);
+        return num2 ? `nombre_perito_${num2[1]}` : "nombre_perito_1";
+    }
+    if (/cedula/.test(c) && /perito/.test(c)) {
+        const num2 = contenido.match(/(\d+)/);
+        return num2 ? `cedula_perito_${num2[1]}` : "cedula_perito_1";
+    }
+    if (/profesion/.test(c) && /perito/.test(c)) {
+        const num2 = contenido.match(/(\d+)/);
+        return num2 ? `profesion_perito_${num2[1]}` : "profesion_perito_1";
+    }
+    if (/especialidad/.test(c) && /perito/.test(c)) {
+        const num2 = contenido.match(/(\d+)/);
+        return num2 ? `especialidad_perito_${num2[1]}` : "especialidad_perito_1";
+    }
+    if (/objeto/.test(c) && /pericia/.test(c)) {
+        const num2 = contenido.match(/(\d+)/);
+        return num2 ? `objeto_pericia_${num2[1]}` : "objeto_pericia_1";
+    }
+    if (/puntos/.test(c) && /pericia/.test(c)) {
+        const num2 = contenido.match(/(\d+)/);
+        return num2 ? `puntos_pericia_${num2[1]}` : "puntos_pericia_1";
+    }
+    if (/conclusion/.test(c) && /pericia/.test(c)) {
+        const num2 = contenido.match(/(\d+)/);
+        return num2 ? `conclusion_pericia_${num2[1]}` : "conclusion_pericia_1";
+    }
+    if (/registro/.test(c) && /perito/.test(c)) {
+        const num2 = contenido.match(/(\d+)/);
+        return num2 ? `registro_perito_${num2[1]}` : "registro_perito_1";
+    }
+    if (/correo/.test(c) && /perito/.test(c)) {
+        const num2 = contenido.match(/(\d+)/);
+        return num2 ? `correo_perito_${num2[1]}` : "correo_perito_1";
+    }
+    if (/(telefono|celular)/.test(c) && /perito/.test(c)) {
+        const num2 = contenido.match(/(\d+)/);
+        return num2 ? `telefono_perito_${num2[1]}` : "telefono_perito_1";
+    }
+
+    // ==================== INSPECCION JUDICIAL ====================
+    if (/inspeccion/.test(c) && /lugar/.test(c)) return "lugar_inspeccion";
+    if (/inspeccion/.test(c) && /objeto/.test(c)) return "objeto_inspeccion";
+    if (/inspeccion/.test(c) && /finalidad/.test(c)) return "finalidad_inspeccion";
+    if (/inspeccion/.test(c) && /fecha/.test(c)) return "fecha_inspeccion";
+    if (/inspeccion/.test(c) && /direccion/.test(c)) return "direccion_inspeccion";
+    if (/inspeccion/.test(c) && /hechos/.test(c)) return "hechos_a_verificar_inspeccion";
+
+    // ==================== ECONOMICOS / LABORAL / ALIMENTOS ====================
+    if (/salario/.test(c) || /sueldo/.test(c)) return "salario";
+    if (/ingreso/.test(c) && /mensual/.test(c)) return "ingresos_mensuales";
+    if (/ingreso/.test(c) && /extraordinario/.test(c)) return "ingresos_extraordinarios";
+    if (/ingreso/.test(c) && /anual/.test(c)) return "ingresos_anuales";
+    if (/egreso/.test(c) && /mensual/.test(c)) return "egresos_mensuales";
+    if (/gasto/.test(c) && /alimentacion/.test(c)) return "gastos_alimentacion";
+    if (/gasto/.test(c) && /vivienda/.test(c)) return "gastos_vivienda";
+    if (/gasto/.test(c) && /educacion/.test(c)) return "gastos_educacion";
+    if (/gasto/.test(c) && /salud/.test(c)) return "gastos_salud";
+    if (/gasto/.test(c) && /transporte/.test(c)) return "gastos_transporte";
+    if (/carga/.test(c) && /familiar/.test(c)) return "carga_familiar";
+    if (/personas/.test(c) && /cargo/.test(c)) return "personas_a_cargo";
+    if (/numero/.test(c) && /hijo/.test(c)) return "numero_hijos";
+    if (/empresa/.test(c) && /trabajo/.test(c) || /empleador/.test(c)) return "empresa_trabajo";
+    if (/cargo/.test(c) && /trabajo/.test(c) || /puesto/.test(c) && /trabajo/.test(c)) return "cargo_trabajo";
+    if (/tipo/.test(c) && /contrato/.test(c) && !/legal/.test(c)) return "tipo_contrato";
+    if (/fecha/.test(c) && /ingreso/.test(c) && /trabajo/.test(c)) return "fecha_ingreso_trabajo";
+    if (/afiliacion/.test(c) && /iess/.test(c)) return "afiliacion_iess";
+    if (/numero/.test(c) && /iess/.test(c)) return "numero_iess";
+    if (/pension/.test(c) && /actual/.test(c)) return "pension_actual";
+    if (/pension/.test(c) && /solicitad/.test(c)) return "pension_solicitada";
+    if (/pension/.test(c) && /propuest/.test(c)) return "pension_propuesta";
+    if (/pension/.test(c) && /provisional/.test(c)) return "pension_provisional";
+    if (/pension/.test(c) && /definitiv/.test(c)) return "pension_definitiva";
+    if (/valor/.test(c) && /pension/.test(c)) return "valor_pension";
+    if (/valor/.test(c) && /adeudad/.test(c)) return "valor_adeudado";
+    if (/fecha/.test(c) && /inicio/.test(c) && /pension/.test(c)) return "fecha_inicio_pension";
+    if (/fecha/.test(c) && /ultimo/.test(c) && /pago/.test(c)) return "fecha_ultimo_pago";
+    if (/danos/.test(c) || /perjuicios/.test(c)) return "danos_perjuicios";
+    if (/intereses/.test(c)) return "intereses";
+    if (/valor/.test(c) && /principal/.test(c)) return "valor_principal";
+
+    // ==================== BENEFICIARIOS (N genérico) ====================
+    if (/nombre/.test(c) && /beneficiario/.test(c)) {
+        const num2 = contenido.match(/(\d+)/);
+        return num2 ? `nombre_beneficiario_${num2[1]}` : "nombre_beneficiario_1";
+    }
+    if (/cedula/.test(c) && /beneficiario/.test(c)) {
+        const num2 = contenido.match(/(\d+)/);
+        return num2 ? `cedula_beneficiario_${num2[1]}` : "cedula_beneficiario_1";
+    }
+
+    // ==================== PATERNIDAD ====================
+    if (/reconoce/.test(c) && /paternidad/.test(c)) return "reconoce_paternidad";
+    if (/niega/.test(c) && /paternidad/.test(c)) return "niega_paternidad";
+    if (/prueba/.test(c) && /adn/.test(c)) return "solicita_prueba_adn";
+    if (/nombre/.test(c) && /madre/.test(c)) return "nombre_madre";
+    if (/nombre/.test(c) && /padre/.test(c)) return "nombre_padre";
+    if (/nombre/.test(c) && /(menor|nino)/.test(c)) return "nombre_menor";
+
+    // ==================== FISCALIA ====================
+    if (/fiscal/.test(c) && /asignad|a\s*cargo/.test(c)) return "fiscal_asignado";
+    if (/tipo/.test(c) && /delito/.test(c)) return "tipo_delito";
+    if (/fecha/.test(c) && /delito/.test(c)) return "fecha_delito";
+    if (/lugar/.test(c) && /delito/.test(c)) return "lugar_delito";
+    if (/nombre/.test(c) && /victima/.test(c)) return "nombre_victima";
+    if (/nombre/.test(c) && /investigad|imputado/.test(c)) return "nombre_investigado";
+
+    if (typeof buscarEnMaestro === "function") {
+        const match = buscarEnMaestro(contenido);
+        if (match && match.entryId) return match.entryId;
+    }
+
+    return null;
+}
+
+function resaltarMarcadoresBase(mapeo, resaltados) {
+    const editor = document.getElementById("editor");
+    if (!editor) return;
+
+    let html = editor.innerHTML;
+
+    const todasLasVariables = [];
+    Object.keys(mapeo).forEach(entryId => {
+        mapeo[entryId].forEach(marcador => {
+            todasLasVariables.push({ entryId, marcador });
+        });
+    });
+
+    todasLasVariables.sort((a, b) => b.marcador.length - a.marcador.length);
+
+    todasLasVariables.forEach(({ entryId, marcador }) => {
+        if (resaltados && resaltados[marcador] === false) return;
+        const color = colorCampo(entryId);
+        const escaped = marcador.replace(/[-\/\\^$*+?.()|[\]{}%]/g, '\\$&');
+        const regex = new RegExp(escaped, "g");
+        const replacement = `<span data-key="${entryId}" style="background:${color}; padding:1px 2px; border-radius:2px; cursor:pointer;" title="${entryId}">${marcador}</span>`;
+        html = html.replace(regex, replacement);
+    });
+
+    editor.innerHTML = html;
+}
+
+function marcarEntriesConVariables(mapeo) {
+    document.querySelectorAll(".entry-input").forEach(input => {
+        const existing = input.parentNode.querySelector(".var-badge");
+        if (existing) existing.remove();
+        if (mapeo[input.id]) {
+            const badge = document.createElement("span");
+            badge.className = "var-badge";
+            badge.style.cssText = `display:inline-block;width:8px;height:8px;border-radius:50%;background:${colorCampo(input.id)};margin-left:4px;vertical-align:middle;border:1px solid #666;`;
+            badge.title = `${mapeo[input.id].length} variable(s) en el documento`;
+            input.parentNode.appendChild(badge);
+        }
+    });
+}
+
+function limpiarBadgeEntries() {
+    document.querySelectorAll(".var-badge").forEach(el => el.remove());
+}
+
+function cerrarDocumentoBase() {
+    configuracionActual = null;
+    documentoBaseId = "";
+    casoId = "";
+    documentoId = "";
+    limpiarBadgeEntries();
+    document.querySelectorAll(".entry-input").forEach(input => { input.value = ""; });
+    document.getElementById("editor").innerHTML = "";
+    const hechosContainer = document.getElementById("entries-hechos-dinamicos");
+    if (hechosContainer) hechosContainer.innerHTML = "";
+}
+
+function subirDocumentoBase() {
+    document.getElementById("modalBaseNombre").value = "";
+    document.getElementById("modalBaseDescripcion").value = "";
+    document.getElementById("modalBaseArchivo").value = "";
+    document.getElementById("modalBaseNuevaCatWrap").style.display = "none";
+    document.getElementById("modalBaseNuevaCat").value = "";
+    document.getElementById("modalBaseNuevaSubWrap").style.display = "none";
+    document.getElementById("modalBaseNuevaSub").value = "";
+
+    const catSelect = document.getElementById("modalBaseCategoria");
+    const proSelect = document.getElementById("modalBaseProcedimiento");
+    const subSelect = document.getElementById("modalBaseSubcategoria");
+
+    if (catSelect.options.length <= 1) {
+        catSelect.innerHTML = '<option value="">Seleccionar...</option>' +
+            CATEGORIAS_PRINCIPALES.map(c => `<option value="${c}">${c}</option>`).join("") +
+            '<option value="__NUEVA__">+ Nueva categoría</option>';
+    }
+    catSelect.value = "";
+
+    if (proSelect.options.length <= 1) {
+        proSelect.innerHTML = '<option value="">No aplica</option>' +
+            PROCEDIMIENTOS.map(p => `<option value="${p}">${p}</option>`).join("");
+    }
+    proSelect.value = "";
+
+    subSelect.innerHTML = '<option value="">Seleccionar...</option>';
+
+    document.getElementById("modalSubirBase").classList.add("abierto");
+}
+
+function cerrarModalSubirBase() {
+    document.getElementById("modalSubirBase").classList.remove("abierto");
+}
+
+function cambiarCategoriaModal() {
+    const cat = document.getElementById("modalBaseCategoria").value;
+    const subSelect = document.getElementById("modalBaseSubcategoria");
+    const nuevaCatWrap = document.getElementById("modalBaseNuevaCatWrap");
+    const nuevaSubWrap = document.getElementById("modalBaseNuevaSubWrap");
+
+    if (cat === "__NUEVA__") {
+        nuevaCatWrap.style.display = "block";
+        subSelect.innerHTML = '<option value="">Seleccionar...</option>';
+        nuevaSubWrap.style.display = "none";
+        return;
+    }
+
+    nuevaCatWrap.style.display = "none";
+    nuevaSubWrap.style.display = "none";
+
+    const subs = SUBCATEGORIAS[cat] || [];
+    subSelect.innerHTML = '<option value="">Seleccionar...</option>' +
+        subs.map(s => `<option value="${s}">${s}</option>`).join("") +
+        '<option value="__NUEVA__">+ Nueva subcategoría</option>';
+}
+
+function cambiarSubcategoriaModal() {
+    const val = document.getElementById("modalBaseSubcategoria").value;
+    const wrap = document.getElementById("modalBaseNuevaSubWrap");
+    if (val === "__NUEVA__") {
+        wrap.style.display = "block";
+        document.getElementById("modalBaseNuevaSub").value = "";
+    } else {
+        wrap.style.display = "none";
+    }
+}
+
+async function confirmarSubirDocumentoBase() {
+    const nombre = document.getElementById("modalBaseNombre").value.trim();
+    let categoria = document.getElementById("modalBaseCategoria").value;
+    let subcategoria = document.getElementById("modalBaseSubcategoria").value;
+    const procedimiento = document.getElementById("modalBaseProcedimiento").value;
+    const descripcion = document.getElementById("modalBaseDescripcion").value.trim();
+    const archivo = document.getElementById("modalBaseArchivo").files[0];
+
+    if (categoria === "__NUEVA__") {
+        categoria = document.getElementById("modalBaseNuevaCat").value.trim();
+    }
+    if (subcategoria === "__NUEVA__") {
+        subcategoria = document.getElementById("modalBaseNuevaSub").value.trim();
+    }
+
+    if (!archivo) {
+        alert("Seleccione un archivo.");
+        return;
+    }
+    if (!nombre) {
+        alert("Ingrese un nombre para el documento.");
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", archivo);
+    formData.append("nombre", nombre);
+    formData.append("categoria", categoria);
+    formData.append("subcategoria", subcategoria);
+    formData.append("procedimiento", procedimiento);
+    formData.append("descripcion", descripcion);
+
+    try {
+        cerrarModalSubirBase();
+
+        const resp = await fetch("/api/documentos-base/subir", {
+            method: "POST",
+            body: formData
+        });
+
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            throw new Error(err.detail || "Error al subir");
+        }
+
+        const result = await resp.json();
+        await cargarDocumentosBase();
+
+        if (result.sugerencia) {
+            mostrarSugerenciaClasificacion(result.documento, result.sugerencia);
+        } else {
+            alert("Documento base subido exitosamente.");
+        }
+    } catch (e) {
+        console.error(e);
+        alert("Error al subir documento base: " + e.message);
+    }
+}
+
+function mostrarSugerenciaClasificacion(doc, sugerencia) {
+    const msg = `Clasificación sugerida por IA:\n\nCategoría: ${sugerencia.categoria || "—"}\nSubcategoría: ${sugerencia.subcategoria || "—"}\nProcedimiento: ${sugerencia.procedimiento || "—"}\n\n¿Desea aplicar esta clasificación?`;
+
+    if (confirm(msg)) {
+        aplicarSugerenciaClasificacion(doc.id, sugerencia);
+    }
+}
+
+async function aplicarSugerenciaClasificacion(docId, sugerencia) {
+    try {
+        const resp = await fetch(`/api/documentos-base/${docId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                categoria: sugerencia.categoria,
+                subcategoria: sugerencia.subcategoria,
+                procedimiento: sugerencia.procedimiento
+            })
+        });
+        if (resp.ok) {
+            await cargarDocumentosBase();
+        }
+    } catch (e) {
+        console.error("Error aplicando sugerencia:", e);
+    }
+}
+
+function editarDocumentoBase() {
+    if (!docBaseSeleccionado) {
+        alert("Seleccione un documento para editar.");
+        return;
+    }
+
+    const catSelect = document.getElementById("modalEditarBaseCategoria");
+    const subSelect = document.getElementById("modalEditarBaseSubcategoria");
+    const proSelect = document.getElementById("modalEditarBaseProcedimiento");
+
+    catSelect.innerHTML = '<option value="">Seleccionar...</option>' +
+        CATEGORIAS_PRINCIPALES.map(c => `<option value="${c}">${c}</option>`).join("") +
+        '<option value="__NUEVA__">+ Nueva categoría</option>';
+
+    proSelect.innerHTML = '<option value="">No aplica</option>' +
+        PROCEDIMIENTOS.map(p => `<option value="${p}">${p}</option>`).join("");
+
+    document.getElementById("modalEditarBaseNuevaCatWrap").style.display = "none";
+    document.getElementById("modalEditarBaseNuevaCat").value = "";
+    document.getElementById("modalEditarBaseNuevaSubWrap").style.display = "none";
+    document.getElementById("modalEditarBaseNuevaSub").value = "";
+
+    const doc = docBaseSeleccionado;
+    document.getElementById("modalEditarBaseNombre").value = doc.nombre || "";
+    document.getElementById("modalEditarBaseDescripcion").value = doc.descripcion || "";
+    document.getElementById("modalEditarBaseArchivo").value = "";
+
+    if (doc.categoria && CATEGORIAS_PRINCIPALES.includes(doc.categoria)) {
+        catSelect.value = doc.categoria;
+        cambiarCategoriaModalEditar();
+    } else if (doc.categoria) {
+        catSelect.value = "__NUEVA__";
+        document.getElementById("modalEditarBaseNuevaCatWrap").style.display = "block";
+        document.getElementById("modalEditarBaseNuevaCat").value = doc.categoria;
+        subSelect.innerHTML = '<option value="">Seleccionar...</option>';
+    }
+
+    if (doc.subcategoria && subSelect.querySelector(`option[value="${doc.subcategoria}"]`)) {
+        subSelect.value = doc.subcategoria;
+    } else if (doc.subcategoria) {
+        subSelect.value = "__NUEVA__";
+        document.getElementById("modalEditarBaseNuevaSubWrap").style.display = "block";
+        document.getElementById("modalEditarBaseNuevaSub").value = doc.subcategoria;
+    }
+
+    if (doc.procedimiento) {
+        proSelect.value = doc.procedimiento;
+    }
+
+    document.getElementById("modalEditarBase").classList.add("abierto");
+}
+
+function cerrarModalEditarBase() {
+    document.getElementById("modalEditarBase").classList.remove("abierto");
+}
+
+function cambiarCategoriaModalEditar() {
+    const cat = document.getElementById("modalEditarBaseCategoria").value;
+    const subSelect = document.getElementById("modalEditarBaseSubcategoria");
+    const nuevaCatWrap = document.getElementById("modalEditarBaseNuevaCatWrap");
+    const nuevaSubWrap = document.getElementById("modalEditarBaseNuevaSubWrap");
+
+    if (cat === "__NUEVA__") {
+        nuevaCatWrap.style.display = "block";
+        subSelect.innerHTML = '<option value="">Seleccionar...</option>';
+        nuevaSubWrap.style.display = "none";
+        return;
+    }
+
+    nuevaCatWrap.style.display = "none";
+    nuevaSubWrap.style.display = "none";
+
+    const subs = SUBCATEGORIAS[cat] || [];
+    subSelect.innerHTML = '<option value="">Seleccionar...</option>' +
+        subs.map(s => `<option value="${s}">${s}</option>`).join("") +
+        '<option value="__NUEVA__">+ Nueva subcategoría</option>';
+}
+
+function cambiarSubcategoriaModalEditar() {
+    const val = document.getElementById("modalEditarBaseSubcategoria").value;
+    const wrap = document.getElementById("modalEditarBaseNuevaSubWrap");
+    if (val === "__NUEVA__") {
+        wrap.style.display = "block";
+        document.getElementById("modalEditarBaseNuevaSub").value = "";
+    } else {
+        wrap.style.display = "none";
+    }
+}
+
+async function confirmarEditarDocumentoBase() {
+    const nombre = document.getElementById("modalEditarBaseNombre").value.trim();
+    let categoria = document.getElementById("modalEditarBaseCategoria").value;
+    let subcategoria = document.getElementById("modalEditarBaseSubcategoria").value;
+    const procedimiento = document.getElementById("modalEditarBaseProcedimiento").value;
+    const descripcion = document.getElementById("modalEditarBaseDescripcion").value.trim();
+    const archivoInput = document.getElementById("modalEditarBaseArchivo");
+    const archivo = archivoInput && archivoInput.files.length > 0 ? archivoInput.files[0] : null;
+
+    if (categoria === "__NUEVA__") {
+        categoria = document.getElementById("modalEditarBaseNuevaCat").value.trim();
+    }
+    if (subcategoria === "__NUEVA__") {
+        subcategoria = document.getElementById("modalEditarBaseNuevaSub").value.trim();
+    }
+
+    if (!nombre) {
+        alert("Ingrese un nombre para el documento.");
+        return;
+    }
+
+    try {
+        cerrarModalEditarBase();
+
+        const formData = new FormData();
+        formData.append("nombre", nombre);
+        formData.append("categoria", categoria);
+        formData.append("subcategoria", subcategoria || "");
+        formData.append("procedimiento", procedimiento || "");
+        formData.append("descripcion", descripcion);
+        if (archivo) {
+            formData.append("archivo", archivo);
+        }
+
+        const resp = await fetch(`/api/documentos-base/${docBaseSeleccionado.id}`, {
+            method: "PATCH",
+            body: formData
+        });
+
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            throw new Error(err.detail || "Error al guardar");
+        }
+
+        await cargarDocumentosBase();
+        alert("Documento base actualizado.");
+    } catch (e) {
+        console.error(e);
+        alert("Error al editar documento base: " + e.message);
+    }
+}
+
+async function borrarDocumentoBase() {
+    if (!docBaseSeleccionado) {
+        alert("Seleccione un documento para eliminar.");
+        return;
+    }
+
+    if (!confirm("¿Está seguro de que desea eliminar este documento base?\n\nLos casos existentes creados a partir de él NO se eliminarán.")) {
+        return;
+    }
+
+    try {
+        const resp = await fetch(`/api/documentos-base/${docBaseSeleccionado.id}`, {
+            method: "DELETE"
+        });
+
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            throw new Error(err.detail || "Error al eliminar");
+        }
+
+        docBaseSeleccionado = null;
+        await cargarDocumentosBase();
+        alert("Documento base eliminado.");
+    } catch (e) {
+        console.error(e);
+        alert("Error al eliminar documento base: " + e.message);
+    }
+}
+
+async function seedDocumentosBase() {
+    try {
+        await fetch("/api/documentos-base/seed", { method: "POST" });
+    } catch (e) {
+        console.warn("Seed:", e);
+    }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    seedDocumentosBase();
+    inicializarFiltroCategorias();
+});
+
+function inicializarFiltroCategorias() {
+    const contenedor = document.getElementById("repoCategorias");
+    if (!contenedor) return;
+    let html = '<button class="repo-cat-btn activa" onclick="filtrarCategoria(\'TODOS\', this)">TODOS</button>';
+    const catsUsadas = [...new Set(documentosBaseCache.map(d => d.categoria).filter(Boolean))];
+    const catsFinales = [...new Set([...CATEGORIAS_PRINCIPALES, ...catsUsadas])];
+    catsFinales.forEach(c => {
+        html += `<button class="repo-cat-btn" onclick="filtrarCategoria('${c.replace(/'/g, "\\'")}', this)">${c}</button>`;
+    });
+    contenedor.innerHTML = html;
+}

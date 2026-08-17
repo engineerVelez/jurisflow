@@ -80,7 +80,7 @@
             border: 1px solid #e2e8f0;
         }
         .panel-izq { flex: 0 0 63%; }
-        .panel-der { flex: 1 1 37%; }
+        .panel-der { flex: 1 1 37%; max-height: 680px; overflow-y: auto; }
         .panel-titulo {
             padding: 12px 16px;
             border-bottom: 1px solid #eef2f6;
@@ -194,6 +194,194 @@
             font-family: inherit;
             font-size: 13px;
         }
+
+        /* ===== REPOSITORIO DE DOCUMENTOS BASE ===== */
+        .repositorio-toggle {
+            padding: 10px 24px;
+            background: #fff;
+            border-bottom: 1px solid #e2e8f0;
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #1e3a5f;
+            transition: background .15s;
+        }
+        .repositorio-toggle:hover { background: #f1f5f9; }
+        .repositorio-toggle .flecha {
+            font-size: 11px;
+            transition: transform .2s;
+        }
+
+        .repositorio-panel {
+            display: none;
+            background: #fff;
+            border-bottom: 1px solid #e2e8f0;
+            padding: 14px 24px 18px;
+        }
+        .repositorio-panel.abierto { display: block; }
+
+        .repo-busqueda {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 12px;
+            align-items: center;
+        }
+        .repo-busqueda input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+        .repo-busqueda input:focus {
+            outline: none;
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, .12);
+        }
+
+        .repo-categorias {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 12px;
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            padding-bottom: 4px;
+            -webkit-overflow-scrolling: touch;
+        }
+        .repo-categorias::-webkit-scrollbar { height: 4px; }
+        .repo-categorias::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 2px; }
+        .repo-cat-btn {
+            padding: 4px 10px;
+            border: 1px solid #d1d5db;
+            border-radius: 14px;
+            background: #fff;
+            cursor: pointer;
+            font-size: 11.5px;
+            font-weight: 600;
+            color: #475569;
+            transition: all .15s;
+        }
+        .repo-cat-btn:hover { background: #f1f5f9; }
+        .repo-cat-btn.activa {
+            background: #1e3a5f;
+            color: #fff;
+            border-color: #1e3a5f;
+        }
+
+        .repo-lista {
+            max-height: 220px;
+            overflow-y: auto;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            margin-bottom: 14px;
+            background: #f8fafc;
+        }
+        .repo-item {
+            padding: 10px 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 13px;
+            border-bottom: 1px solid #eef2f6;
+            transition: background .1s;
+        }
+        .repo-item:last-child { border-bottom: none; }
+        .repo-item:hover { background: #eef2f6; }
+        .repo-item.seleccionado {
+            background: #dbeafe;
+            border-left: 3px solid #2563eb;
+        }
+        .repo-item-icono { font-size: 16px; }
+        .repo-item-info { flex: 1; }
+        .repo-item-nombre { font-weight: 600; color: #1e293b; }
+        .repo-item-cat {
+            font-size: 11px;
+            color: #64748b;
+            margin-top: 2px;
+        }
+        .repo-item-badge {
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 8px;
+            background: #dcfce7;
+            color: #166534;
+            font-weight: 600;
+        }
+
+        .repo-acciones {
+            display: flex;
+            gap: 8px;
+        }
+        .repo-acciones .btn {
+            padding: 7px 14px;
+            font-size: 12.5px;
+        }
+
+        .repo-empty {
+            padding: 24px;
+            text-align: center;
+            color: #94a3b8;
+            font-size: 13px;
+        }
+
+        /* ===== MODAL SUBIR DOCUMENTO BASE ===== */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,.45);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-overlay.abierto { display: flex; }
+        .modal-box {
+            background: #fff;
+            border-radius: 10px;
+            padding: 24px;
+            width: 460px;
+            max-width: 92vw;
+            box-shadow: 0 12px 32px rgba(0,0,0,.25);
+        }
+        .modal-box h3 {
+            margin: 0 0 16px;
+            font-size: 16px;
+            color: #1e3a5f;
+        }
+        .modal-campo {
+            margin-bottom: 12px;
+        }
+        .modal-campo label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: #475569;
+            margin-bottom: 4px;
+        }
+        .modal-campo input, .modal-campo select, .modal-campo textarea {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 13px;
+            font-family: inherit;
+        }
+        .modal-campo input:focus, .modal-campo select:focus, .modal-campo textarea:focus {
+            outline: none;
+            border-color: #2563eb;
+        }
+        .modal-campo textarea { height: 60px; resize: vertical; }
+        .modal-acciones {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+            margin-top: 16px;
+        }
     </style>
 </head>
 
@@ -201,7 +389,7 @@
 
 <div class="header">
     <div>
-        <h1>⚖️ Replace Docs JuRidocs <span id="version-badge" style="font-size:12px;color:#ff9800;vertical-align:middle;background:#2a2a2a;border:1px solid #ff9800;border-radius:4px;padding:1px 6px;">v?—</span></h1>
+        <h1>⚖️ Replace Docs JuRidocs <span id="version-badge" style="font-size:12px;color:#ff9800;vertical-align:middle;background:#2a2a2a;border:1px solid #ff9800;border-radius:4px;padding:1px 6px;">v137</span></h1>
         <div class="sub">Análisis automático de documentos jurídicos</div>
     </div>
     <button class="btn btn-secundario" onclick="abrirConfig()">⚙ Configuración IA</button>
@@ -211,6 +399,129 @@
     <input type="file" id="file" accept=".docx,.doc,.pdf">
     <button type="submit" class="btn btn-primary">Analizar documento</button>
 </form>
+
+<!-- 📚 REPOSITORIO DE DOCUMENTOS BASE -->
+<div class="repositorio-toggle" onclick="toggleRepositorio()">
+    <span>📚 REPOSITORIO DE DOCUMENTOS BASE</span>
+    <span class="flecha" id="repoFlecha">▼</span>
+</div>
+
+<div class="repositorio-panel" id="repositorioPanel">
+    <div class="repo-busqueda">
+        <input type="text" id="repoBusqueda" placeholder="🔎 Buscar documento..." oninput="filtrarDocumentosBase()">
+    </div>
+    <div class="repo-categorias" id="repoCategorias">
+        <button class="repo-cat-btn activa" onclick="filtrarCategoria('TODOS', this)">TODOS</button>
+    </div>
+    <div class="repo-lista" id="repoLista">
+        <div class="repo-empty">Cargando documentos...</div>
+    </div>
+    <div class="repo-acciones">
+        <button class="btn btn-primary" onclick="subirDocumentoBase()">⬆ SUBIR</button>
+        <button class="btn btn-secundario" onclick="editarDocumentoBase()">✏ EDITAR</button>
+        <button class="btn btn-secundario" onclick="borrarDocumentoBase()">🗑 BORRAR</button>
+        <button class="btn btn-primary" onclick="seleccionarDocumentoBase()">✓ SELECCIONAR</button>
+    </div>
+</div>
+
+<!-- MODAL: SUBIR DOCUMENTO BASE -->
+<div class="modal-overlay" id="modalSubirBase">
+    <div class="modal-box">
+        <h3>📚 Subir Documento Base</h3>
+        <div class="modal-campo">
+            <label>Nombre</label>
+            <input type="text" id="modalBaseNombre" placeholder="Ej: Demanda de Servidumbre de Paso">
+        </div>
+        <div class="modal-campo">
+            <label>Categoría</label>
+            <select id="modalBaseCategoria" onchange="cambiarCategoriaModal()">
+                <option value="">Seleccionar...</option>
+            </select>
+        </div>
+        <div class="modal-campo" id="modalBaseNuevaCatWrap" style="display:none;">
+            <label>Nueva categoría</label>
+            <input type="text" id="modalBaseNuevaCat" placeholder="Ej: MERCANTIL">
+        </div>
+        <div class="modal-campo">
+            <label>Subcategoría</label>
+            <select id="modalBaseSubcategoria" onchange="cambiarSubcategoriaModal()">
+                <option value="">Seleccionar...</option>
+            </select>
+        </div>
+        <div class="modal-campo" id="modalBaseNuevaSubWrap" style="display:none;">
+            <label>Nueva subcategoría</label>
+            <input type="text" id="modalBaseNuevaSub" placeholder="Ej: Interdicto de recobrar">
+        </div>
+        <div class="modal-campo">
+            <label>Procedimiento</label>
+            <select id="modalBaseProcedimiento">
+                <option value="">No aplica</option>
+            </select>
+        </div>
+        <div class="modal-campo">
+            <label>Descripción</label>
+            <textarea id="modalBaseDescripcion" placeholder="Descripción del documento base..."></textarea>
+        </div>
+        <div class="modal-campo">
+            <label>Archivo</label>
+            <input type="file" id="modalBaseArchivo" accept=".docx,.doc,.pdf">
+        </div>
+        <div class="modal-acciones">
+            <button class="btn btn-secundario" onclick="cerrarModalSubirBase()">Cancelar</button>
+            <button class="btn btn-primary" onclick="confirmarSubirDocumentoBase()">Subir</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: EDITAR DOCUMENTO BASE -->
+<div class="modal-overlay" id="modalEditarBase">
+    <div class="modal-box">
+        <h3>✏️ Editar Documento Base</h3>
+        <div class="modal-campo">
+            <label>Nombre</label>
+            <input type="text" id="modalEditarBaseNombre" placeholder="Ej: Demanda de Servidumbre de Paso">
+        </div>
+        <div class="modal-campo">
+            <label>Categoría</label>
+            <select id="modalEditarBaseCategoria" onchange="cambiarCategoriaModalEditar()">
+                <option value="">Seleccionar...</option>
+            </select>
+        </div>
+        <div class="modal-campo" id="modalEditarBaseNuevaCatWrap" style="display:none;">
+            <label>Nueva categoría</label>
+            <input type="text" id="modalEditarBaseNuevaCat" placeholder="Ej: MERCANTIL">
+        </div>
+        <div class="modal-campo">
+            <label>Subcategoría</label>
+            <select id="modalEditarBaseSubcategoria" onchange="cambiarSubcategoriaModalEditar()">
+                <option value="">Seleccionar...</option>
+            </select>
+        </div>
+        <div class="modal-campo" id="modalEditarBaseNuevaSubWrap" style="display:none;">
+            <label>Nueva subcategoría</label>
+            <input type="text" id="modalEditarBaseNuevaSub" placeholder="Ej: Interdicto de recobrar">
+        </div>
+        <div class="modal-campo">
+            <label>Procedimiento</label>
+            <select id="modalEditarBaseProcedimiento">
+                <option value="">No aplica</option>
+            </select>
+        </div>
+        <div class="modal-campo">
+            <label>Descripción</label>
+            <textarea id="modalEditarBaseDescripcion" placeholder="Descripción del documento base..."></textarea>
+        </div>
+        <div class="modal-campo">
+            <label>Reemplazar archivo (opcional)</label>
+            <input type="file" id="modalEditarBaseArchivo" accept=".docx,.doc,.pdf">
+            <small style="color:#999;margin-top:4px;display:block;">Solo si desea cambiar el archivo del documento base</small>
+        </div>
+        <div class="modal-acciones">
+            <button class="btn btn-secundario" onclick="cerrarModalEditarBase()">Cancelar</button>
+            <button class="btn btn-primary" onclick="confirmarEditarDocumentoBase()">Guardar cambios</button>
+        </div>
+    </div>
+</div>
 
 <div class="layout">
 
@@ -233,6 +544,8 @@
 
         <div id="bannerConfianza" style="display:none; margin:0 16px 10px 16px; padding:10px 14px; border-radius:8px; font-size:14px; line-height:1.4;"></div>
 
+        <!-- ENTRADAS FIJAS (Documento Real) -->
+        <div id="contenedorEntriesFijos">
         <div class="legend">
             <span class="item"><span class="chip" style="background:#FFD54F"></span>Nombre actor</span>
             <span class="item"><span class="chip" style="background:#64B5F6"></span>Nombre demandado</span>
@@ -255,10 +568,16 @@
             <button class="btn-rojo" data-key="tipo_juicio"></button>
             <input id="tipo_juicio" class="entry-input" placeholder="Tipo de juicio">
         </div>
+        <div class="campo">
+            <button class="btn-rojo" data-key="unidad_judicial_top"></button>
+            <input id="unidad_judicial_top" class="entry-input" placeholder="Unidad judicial">
+        </div>
 
+    <!-- ===== PAGINA 1: ACTOR 1 ===== -->
+    <div id="pagina-actor1" class="pagina-entries">
     <div id="bloque-actor">
 
-        <h4>Actor</h4>
+        <h4>Actor 1</h4>
         <div class="campo">
             <button class="btn-rojo" data-key="actor" onmousedown="event.preventDefault()"></button>
             <input id="actor" class="entry-input" placeholder="Nombre completo">
@@ -294,7 +613,7 @@
             <input id="email" class="entry-input" placeholder="Correo electrónico">
         </div>
 
-        <h4>Dirección del Actor</h4>
+        <h4>Dirección del Actor 1</h4>
 
         <div class="campo">
             <button class="btn-rojo" data-key="parroquia_actor"></button>
@@ -330,8 +649,107 @@
             <button class="btn-rojo" data-key="telefono_actor"></button>
             <input id="telefono_actor" class="entry-input" placeholder="Contacto">
         </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="direccion_domiciliaria_actor"></button>
+            <input id="direccion_domiciliaria_actor" class="entry-input" placeholder="Dirección domiciliaria">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="casillero_judicial_actor"></button>
+            <input id="casillero_judicial_actor" class="entry-input" placeholder="Casillero judicial">
+        </div>
+    </div>
     </div>
 
+    <!-- ===== PAGINA 2: ACTOR 2 ===== -->
+    <div id="pagina-actor2" class="pagina-entries" style="display:none;">
+        <h4>Actor 2</h4>
+        <div class="campo">
+            <button class="btn-rojo" data-key="actor_2" onmousedown="event.preventDefault()"></button>
+            <input id="actor_2" class="entry-input" placeholder="Nombre completo">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="cedula_actor_2" onmousedown="event.preventDefault()"></button>
+            <input id="cedula_actor_2" class="entry-input" placeholder="Cédula">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="age_actor_2" onmousedown="event.preventDefault()"></button>
+            <input id="age_actor_2" class="entry-input" placeholder="Edad">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="civil_actor_2" onmousedown="event.preventDefault()"></button>
+            <input id="civil_actor_2" class="entry-input" placeholder="Estado civil">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="profesion_actor_2" onmousedown="event.preventDefault()"></button>
+            <input id="profesion_actor_2" class="entry-input" placeholder="Profesión">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="ciudadania_actor_2" onmousedown="event.preventDefault()"></button>
+            <input id="ciudadania_actor_2" class="entry-input" placeholder="Ciudadanía">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="email_actor_2" onmousedown="event.preventDefault()"></button>
+            <input id="email_actor_2" class="entry-input" placeholder="Correo electrónico">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="telefono_actor_2" onmousedown="event.preventDefault()"></button>
+            <input id="telefono_actor_2" class="entry-input" placeholder="Contacto">
+        </div>
+
+        <h4>Dirección del Actor 2</h4>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="parroquia_actor_2"></button>
+            <input id="parroquia_actor_2" class="entry-input" placeholder="Parroquia">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="barrio_actor_2"></button>
+            <input id="barrio_actor_2" class="entry-input" placeholder="Barrio">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="calle_principal_actor_2"></button>
+            <input id="calle_principal_actor_2" class="entry-input" placeholder="Calle principal">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="calle_secundaria_actor_2"></button>
+            <input id="calle_secundaria_actor_2" class="entry-input" placeholder="Calle secundaria">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="numero_casa_actor_2"></button>
+            <input id="numero_casa_actor_2" class="entry-input" placeholder="Número de casa">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="codigo_postal_actor_2"></button>
+            <input id="codigo_postal_actor_2" class="entry-input" placeholder="Código postal">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="direccion_domiciliaria_actor_2"></button>
+            <input id="direccion_domiciliaria_actor_2" class="entry-input" placeholder="Dirección domiciliaria">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="casillero_judicial_actor_2"></button>
+            <input id="casillero_judicial_actor_2" class="entry-input" placeholder="Casillero judicial">
+        </div>
+    </div>
+
+    <!-- ===== PAGINA 3: DEMANDADO ===== -->
+    <div id="pagina-demandado" class="pagina-entries" style="display:none;">
     <div id="bloque-demandado">
         <h4>Demandado</h4>
 
@@ -346,8 +764,33 @@
         </div>
 
         <div class="campo">
+            <button class="btn-rojo" data-key="edad_demandado"></button>
+            <input id="edad_demandado" class="entry-input" placeholder="Edad">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="civil_demandado"></button>
+            <input id="civil_demandado" class="entry-input" placeholder="Estado civil">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="profesion_demandado"></button>
+            <input id="profesion_demandado" class="entry-input" placeholder="Profesión">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="ciudadania_demandado"></button>
+            <input id="ciudadania_demandado" class="entry-input" placeholder="Ciudadanía">
+        </div>
+
+        <div class="campo">
             <button class="btn-rojo" data-key="email_demandado"></button>
             <input id="email_demandado" class="entry-input" placeholder="Email demandado">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="telefono_demandado"></button>
+            <input id="telefono_demandado" class="entry-input" placeholder="Teléfono">
         </div>
 
         <h4>Dirección del Demandado</h4>
@@ -383,18 +826,69 @@
         </div>
 
         <div class="campo">
-            <button class="btn-rojo" data-key="telefono_demandado"></button>
-            <input id="telefono_demandado" class="entry-input" placeholder="Teléfono">
+            <button class="btn-rojo" data-key="direccion_citacion_demandado"></button>
+            <input id="direccion_citacion_demandado" class="entry-input" placeholder="Dirección para citación">
+        </div>
+    </div>
+    </div>
+
+    <!-- ===== PAGINA 4: HECHOS ===== -->
+    <div id="pagina-hechos" class="pagina-entries" style="display:none;">
+        <h4>Hechos</h4>
+        <div class="campo">
+            <button class="btn-rojo" data-key="hecho_1"></button>
+            <input id="hecho_1" class="entry-input" placeholder="Dentro otros 1">
+        </div>
+        <div class="campo">
+            <button class="btn-rojo" data-key="hecho_2"></button>
+            <input id="hecho_2" class="entry-input" placeholder="Dentro otros 2">
+        </div>
+        <div class="campo">
+            <button class="btn-rojo" data-key="hecho_3"></button>
+            <input id="hecho_3" class="entry-input" placeholder="Dentro otros 3">
+        </div>
+        <div class="campo">
+            <button class="btn-rojo" data-key="hecho_4"></button>
+            <input id="hecho_4" class="entry-input" placeholder="Dentro otros 4">
+        </div>
+        <div class="campo">
+            <button class="btn-rojo" data-key="hecho_5"></button>
+            <input id="hecho_5" class="entry-input" placeholder="Dentro otros 5">
+        </div>
+        <div class="campo">
+            <button class="btn-rojo" data-key="hecho_6"></button>
+            <input id="hecho_6" class="entry-input" placeholder="Dentro otros 6">
+        </div>
+        <div class="campo">
+            <button class="btn-rojo" data-key="hecho_7"></button>
+            <input id="hecho_7" class="entry-input" placeholder="Dentro otros 7">
+        </div>
+        <div class="campo">
+            <button class="btn-rojo" data-key="hecho_8"></button>
+            <input id="hecho_8" class="entry-input" placeholder="Dentro otros 8">
+        </div>
+        <div class="campo">
+            <button class="btn-rojo" data-key="hecho_9"></button>
+            <input id="hecho_9" class="entry-input" placeholder="Dentro otros 9">
+        </div>
+        <div class="campo">
+            <button class="btn-rojo" data-key="hecho_10"></button>
+            <input id="hecho_10" class="entry-input" placeholder="Dentro otros 10">
+        </div>
+        <div id="entries-hechos-dinamicos">
         </div>
     </div>
 
-    <!-- BLOQUE DE TESTIGOS -->
-    <div id="bloque-testigo1">
-        <h4>Testigo 1</h4>
+    <!-- ===== PAGINA 5: TESTIGOS ===== -->
+    <div id="pagina-testigos" class="pagina-entries" style="display:none;">
+        <h4 id="testigos-titulo">Prueba Testimonial — Testigo 1 de 5</h4>
+
+    <div id="bloque-testigo1" class="bloque-testigo" style="display:block;">
+        <h4 style="margin-top:8px;">Testigo 1</h4>
 
         <div class="campo">
             <button class="btn-rojo" data-key="nombre_testigo1" onmousedown="event.preventDefault()"></button>
-            <input id="nombre_testigo1" class="entry-input" placeholder="Nombre">
+            <input id="nombre_testigo1" class="entry-input" placeholder="Nombre completo">
         </div>
 
         <div class="campo">
@@ -403,15 +897,18 @@
         </div>
 
         <div class="campo">
-            <button class="btn-rojo" data-key="email_testigo1"></button>
-            <input id="email_testigo1" class="entry-input" placeholder="Email">
+            <button class="btn-rojo" data-key="ciudad_testigo1"></button>
+            <input id="ciudad_testigo1" class="entry-input" placeholder="Ciudad">
         </div>
 
-        <h4>Dirección del Testigo</h4>
+        <div class="campo">
+            <button class="btn-rojo" data-key="provincia_testigo1"></button>
+            <input id="provincia_testigo1" class="entry-input" placeholder="Provincia">
+        </div>
 
         <div class="campo">
-            <button class="btn-rojo" data-key="direccion_testigo1"></button>
-            <input id="direccion_testigo1" class="entry-input" placeholder="Dirección">
+            <button class="btn-rojo" data-key="canton_testigo1"></button>
+            <input id="canton_testigo1" class="entry-input" placeholder="Cantón">
         </div>
 
         <div class="campo">
@@ -420,22 +917,32 @@
         </div>
 
         <div class="campo">
-            <button class="btn-rojo" data-key="ciudad_testigo1"></button>
-            <input id="ciudad_testigo1" class="entry-input" placeholder="Ciudad">
+            <button class="btn-rojo" data-key="barrio_testigo1"></button>
+            <input id="barrio_testigo1" class="entry-input" placeholder="Barrio">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="direccion_testigo1"></button>
+            <input id="direccion_testigo1" class="entry-input" placeholder="Dirección">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="email_testigo1"></button>
+            <input id="email_testigo1" class="entry-input" placeholder="Correo electrónico">
         </div>
 
         <div class="campo">
             <button class="btn-rojo" data-key="objeto_testigo1"></button>
-            <input id="objeto_testigo1" class="entry-input" placeholder="Objeto del testimonio">
+            <input id="objeto_testigo1" class="entry-input" placeholder="Hechos sobre los que declarará">
         </div>
     </div>
 
-    <div id="bloque-testigo2">
+    <div id="bloque-testigo2" class="bloque-testigo" style="display:none;">
         <h4>Testigo 2</h4>
 
         <div class="campo">
             <button class="btn-rojo" data-key="nombre_testigo2" onmousedown="event.preventDefault()"></button>
-            <input id="nombre_testigo2" class="entry-input" placeholder="Nombre">
+            <input id="nombre_testigo2" class="entry-input" placeholder="Nombre completo">
         </div>
 
         <div class="campo">
@@ -444,15 +951,18 @@
         </div>
 
         <div class="campo">
-            <button class="btn-rojo" data-key="email_testigo2"></button>
-            <input id="email_testigo2" class="entry-input" placeholder="Email">
+            <button class="btn-rojo" data-key="ciudad_testigo2"></button>
+            <input id="ciudad_testigo2" class="entry-input" placeholder="Ciudad">
         </div>
 
-        <h4>Dirección del Testigo</h4>
+        <div class="campo">
+            <button class="btn-rojo" data-key="provincia_testigo2"></button>
+            <input id="provincia_testigo2" class="entry-input" placeholder="Provincia">
+        </div>
 
         <div class="campo">
-            <button class="btn-rojo" data-key="direccion_testigo2"></button>
-            <input id="direccion_testigo2" class="entry-input" placeholder="Dirección">
+            <button class="btn-rojo" data-key="canton_testigo2"></button>
+            <input id="canton_testigo2" class="entry-input" placeholder="Cantón">
         </div>
 
         <div class="campo">
@@ -461,22 +971,32 @@
         </div>
 
         <div class="campo">
-            <button class="btn-rojo" data-key="ciudad_testigo2"></button>
-            <input id="ciudad_testigo2" class="entry-input" placeholder="Ciudad">
+            <button class="btn-rojo" data-key="barrio_testigo2"></button>
+            <input id="barrio_testigo2" class="entry-input" placeholder="Barrio">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="direccion_testigo2"></button>
+            <input id="direccion_testigo2" class="entry-input" placeholder="Dirección">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="email_testigo2"></button>
+            <input id="email_testigo2" class="entry-input" placeholder="Correo electrónico">
         </div>
 
         <div class="campo">
             <button class="btn-rojo" data-key="objeto_testigo2"></button>
-            <input id="objeto_testigo2" class="entry-input" placeholder="Objeto del testimonio">
+            <input id="objeto_testigo2" class="entry-input" placeholder="Hechos sobre los que declarará">
         </div>
     </div>
 
-    <div id="bloque-testigo3">
+    <div id="bloque-testigo3" class="bloque-testigo" style="display:none;">
         <h4>Testigo 3</h4>
 
         <div class="campo">
             <button class="btn-rojo" data-key="nombre_testigo3" onmousedown="event.preventDefault()"></button>
-            <input id="nombre_testigo3" class="entry-input" placeholder="Nombre">
+            <input id="nombre_testigo3" class="entry-input" placeholder="Nombre completo">
         </div>
 
         <div class="campo">
@@ -485,15 +1005,18 @@
         </div>
 
         <div class="campo">
-            <button class="btn-rojo" data-key="email_testigo3"></button>
-            <input id="email_testigo3" class="entry-input" placeholder="Email">
+            <button class="btn-rojo" data-key="ciudad_testigo3"></button>
+            <input id="ciudad_testigo3" class="entry-input" placeholder="Ciudad">
         </div>
 
-        <h4>Dirección del Testigo</h4>
+        <div class="campo">
+            <button class="btn-rojo" data-key="provincia_testigo3"></button>
+            <input id="provincia_testigo3" class="entry-input" placeholder="Provincia">
+        </div>
 
         <div class="campo">
-            <button class="btn-rojo" data-key="direccion_testigo3"></button>
-            <input id="direccion_testigo3" class="entry-input" placeholder="Dirección">
+            <button class="btn-rojo" data-key="canton_testigo3"></button>
+            <input id="canton_testigo3" class="entry-input" placeholder="Cantón">
         </div>
 
         <div class="campo">
@@ -502,22 +1025,32 @@
         </div>
 
         <div class="campo">
-            <button class="btn-rojo" data-key="ciudad_testigo3"></button>
-            <input id="ciudad_testigo3" class="entry-input" placeholder="Ciudad">
+            <button class="btn-rojo" data-key="barrio_testigo3"></button>
+            <input id="barrio_testigo3" class="entry-input" placeholder="Barrio">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="direccion_testigo3"></button>
+            <input id="direccion_testigo3" class="entry-input" placeholder="Dirección">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="email_testigo3"></button>
+            <input id="email_testigo3" class="entry-input" placeholder="Correo electrónico">
         </div>
 
         <div class="campo">
             <button class="btn-rojo" data-key="objeto_testigo3"></button>
-            <input id="objeto_testigo3" class="entry-input" placeholder="Objeto del testimonio">
+            <input id="objeto_testigo3" class="entry-input" placeholder="Hechos sobre los que declarará">
         </div>
     </div>
 
-    <div id="bloque-testigo4">
+    <div id="bloque-testigo4" class="bloque-testigo" style="display:none;">
         <h4>Testigo 4</h4>
 
         <div class="campo">
             <button class="btn-rojo" data-key="nombre_testigo4" onmousedown="event.preventDefault()"></button>
-            <input id="nombre_testigo4" class="entry-input" placeholder="Nombre">
+            <input id="nombre_testigo4" class="entry-input" placeholder="Nombre completo">
         </div>
 
         <div class="campo">
@@ -526,15 +1059,18 @@
         </div>
 
         <div class="campo">
-            <button class="btn-rojo" data-key="email_testigo4"></button>
-            <input id="email_testigo4" class="entry-input" placeholder="Email">
+            <button class="btn-rojo" data-key="ciudad_testigo4"></button>
+            <input id="ciudad_testigo4" class="entry-input" placeholder="Ciudad">
         </div>
 
-        <h4>Dirección del Testigo</h4>
+        <div class="campo">
+            <button class="btn-rojo" data-key="provincia_testigo4"></button>
+            <input id="provincia_testigo4" class="entry-input" placeholder="Provincia">
+        </div>
 
         <div class="campo">
-            <button class="btn-rojo" data-key="direccion_testigo4"></button>
-            <input id="direccion_testigo4" class="entry-input" placeholder="Dirección">
+            <button class="btn-rojo" data-key="canton_testigo4"></button>
+            <input id="canton_testigo4" class="entry-input" placeholder="Cantón">
         </div>
 
         <div class="campo">
@@ -543,22 +1079,32 @@
         </div>
 
         <div class="campo">
-            <button class="btn-rojo" data-key="ciudad_testigo4"></button>
-            <input id="ciudad_testigo4" class="entry-input" placeholder="Ciudad">
+            <button class="btn-rojo" data-key="barrio_testigo4"></button>
+            <input id="barrio_testigo4" class="entry-input" placeholder="Barrio">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="direccion_testigo4"></button>
+            <input id="direccion_testigo4" class="entry-input" placeholder="Dirección">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="email_testigo4"></button>
+            <input id="email_testigo4" class="entry-input" placeholder="Correo electrónico">
         </div>
 
         <div class="campo">
             <button class="btn-rojo" data-key="objeto_testigo4"></button>
-            <input id="objeto_testigo4" class="entry-input" placeholder="Objeto del testimonio">
+            <input id="objeto_testigo4" class="entry-input" placeholder="Hechos sobre los que declarará">
         </div>
     </div>
 
-    <div id="bloque-testigo5">
+    <div id="bloque-testigo5" class="bloque-testigo" style="display:none;">
         <h4>Testigo 5</h4>
 
         <div class="campo">
             <button class="btn-rojo" data-key="nombre_testigo5" onmousedown="event.preventDefault()"></button>
-            <input id="nombre_testigo5" class="entry-input" placeholder="Nombre">
+            <input id="nombre_testigo5" class="entry-input" placeholder="Nombre completo">
         </div>
 
         <div class="campo">
@@ -567,15 +1113,18 @@
         </div>
 
         <div class="campo">
-            <button class="btn-rojo" data-key="email_testigo5"></button>
-            <input id="email_testigo5" class="entry-input" placeholder="Email">
+            <button class="btn-rojo" data-key="ciudad_testigo5"></button>
+            <input id="ciudad_testigo5" class="entry-input" placeholder="Ciudad">
         </div>
 
-        <h4>Dirección del Testigo</h4>
+        <div class="campo">
+            <button class="btn-rojo" data-key="provincia_testigo5"></button>
+            <input id="provincia_testigo5" class="entry-input" placeholder="Provincia">
+        </div>
 
         <div class="campo">
-            <button class="btn-rojo" data-key="direccion_testigo5"></button>
-            <input id="direccion_testigo5" class="entry-input" placeholder="Dirección">
+            <button class="btn-rojo" data-key="canton_testigo5"></button>
+            <input id="canton_testigo5" class="entry-input" placeholder="Cantón">
         </div>
 
         <div class="campo">
@@ -584,17 +1133,383 @@
         </div>
 
         <div class="campo">
-            <button class="btn-rojo" data-key="ciudad_testigo5"></button>
-            <input id="ciudad_testigo5" class="entry-input" placeholder="Ciudad">
+            <button class="btn-rojo" data-key="barrio_testigo5"></button>
+            <input id="barrio_testigo5" class="entry-input" placeholder="Barrio">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="direccion_testigo5"></button>
+            <input id="direccion_testigo5" class="entry-input" placeholder="Dirección">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="email_testigo5"></button>
+            <input id="email_testigo5" class="entry-input" placeholder="Correo electrónico">
         </div>
 
         <div class="campo">
             <button class="btn-rojo" data-key="objeto_testigo5"></button>
-            <input id="objeto_testigo5" class="entry-input" placeholder="Objeto del testimonio">
+            <input id="objeto_testigo5" class="entry-input" placeholder="Hechos sobre los que declarará">
         </div>
     </div>
 
-        <!-- BOTONES DE NAVEGACIÓN -->
+    <div id="bloque-testigo6" class="bloque-testigo" style="display:none;">
+        <h4>Testigo 6</h4>
+        <div class="campo"><button class="btn-rojo" data-key="nombre_testigo6" onmousedown="event.preventDefault()"></button><input id="nombre_testigo6" class="entry-input" placeholder="Nombre completo"></div>
+        <div class="campo"><button class="btn-rojo" data-key="cedula_testigo6"></button><input id="cedula_testigo6" class="entry-input" placeholder="Cédula"></div>
+        <div class="campo"><button class="btn-rojo" data-key="ciudad_testigo6"></button><input id="ciudad_testigo6" class="entry-input" placeholder="Ciudad"></div>
+        <div class="campo"><button class="btn-rojo" data-key="provincia_testigo6"></button><input id="provincia_testigo6" class="entry-input" placeholder="Provincia"></div>
+        <div class="campo"><button class="btn-rojo" data-key="canton_testigo6"></button><input id="canton_testigo6" class="entry-input" placeholder="Cantón"></div>
+        <div class="campo"><button class="btn-rojo" data-key="parroquia_testigo6"></button><input id="parroquia_testigo6" class="entry-input" placeholder="Parroquia"></div>
+        <div class="campo"><button class="btn-rojo" data-key="barrio_testigo6"></button><input id="barrio_testigo6" class="entry-input" placeholder="Barrio"></div>
+        <div class="campo"><button class="btn-rojo" data-key="direccion_testigo6"></button><input id="direccion_testigo6" class="entry-input" placeholder="Dirección"></div>
+        <div class="campo"><button class="btn-rojo" data-key="email_testigo6"></button><input id="email_testigo6" class="entry-input" placeholder="Correo electrónico"></div>
+        <div class="campo"><button class="btn-rojo" data-key="objeto_testigo6"></button><input id="objeto_testigo6" class="entry-input" placeholder="Hechos sobre los que declarará"></div>
+    </div>
+
+    <div id="bloque-testigo7" class="bloque-testigo" style="display:none;">
+        <h4>Testigo 7</h4>
+        <div class="campo"><button class="btn-rojo" data-key="nombre_testigo7" onmousedown="event.preventDefault()"></button><input id="nombre_testigo7" class="entry-input" placeholder="Nombre completo"></div>
+        <div class="campo"><button class="btn-rojo" data-key="cedula_testigo7"></button><input id="cedula_testigo7" class="entry-input" placeholder="Cédula"></div>
+        <div class="campo"><button class="btn-rojo" data-key="ciudad_testigo7"></button><input id="ciudad_testigo7" class="entry-input" placeholder="Ciudad"></div>
+        <div class="campo"><button class="btn-rojo" data-key="provincia_testigo7"></button><input id="provincia_testigo7" class="entry-input" placeholder="Provincia"></div>
+        <div class="campo"><button class="btn-rojo" data-key="canton_testigo7"></button><input id="canton_testigo7" class="entry-input" placeholder="Cantón"></div>
+        <div class="campo"><button class="btn-rojo" data-key="parroquia_testigo7"></button><input id="parroquia_testigo7" class="entry-input" placeholder="Parroquia"></div>
+        <div class="campo"><button class="btn-rojo" data-key="barrio_testigo7"></button><input id="barrio_testigo7" class="entry-input" placeholder="Barrio"></div>
+        <div class="campo"><button class="btn-rojo" data-key="direccion_testigo7"></button><input id="direccion_testigo7" class="entry-input" placeholder="Dirección"></div>
+        <div class="campo"><button class="btn-rojo" data-key="email_testigo7"></button><input id="email_testigo7" class="entry-input" placeholder="Correo electrónico"></div>
+        <div class="campo"><button class="btn-rojo" data-key="objeto_testigo7"></button><input id="objeto_testigo7" class="entry-input" placeholder="Hechos sobre los que declarará"></div>
+    </div>
+
+    <div id="bloque-testigo8" class="bloque-testigo" style="display:none;">
+        <h4>Testigo 8</h4>
+        <div class="campo"><button class="btn-rojo" data-key="nombre_testigo8" onmousedown="event.preventDefault()"></button><input id="nombre_testigo8" class="entry-input" placeholder="Nombre completo"></div>
+        <div class="campo"><button class="btn-rojo" data-key="cedula_testigo8"></button><input id="cedula_testigo8" class="entry-input" placeholder="Cédula"></div>
+        <div class="campo"><button class="btn-rojo" data-key="ciudad_testigo8"></button><input id="ciudad_testigo8" class="entry-input" placeholder="Ciudad"></div>
+        <div class="campo"><button class="btn-rojo" data-key="provincia_testigo8"></button><input id="provincia_testigo8" class="entry-input" placeholder="Provincia"></div>
+        <div class="campo"><button class="btn-rojo" data-key="canton_testigo8"></button><input id="canton_testigo8" class="entry-input" placeholder="Cantón"></div>
+        <div class="campo"><button class="btn-rojo" data-key="parroquia_testigo8"></button><input id="parroquia_testigo8" class="entry-input" placeholder="Parroquia"></div>
+        <div class="campo"><button class="btn-rojo" data-key="barrio_testigo8"></button><input id="barrio_testigo8" class="entry-input" placeholder="Barrio"></div>
+        <div class="campo"><button class="btn-rojo" data-key="direccion_testigo8"></button><input id="direccion_testigo8" class="entry-input" placeholder="Dirección"></div>
+        <div class="campo"><button class="btn-rojo" data-key="email_testigo8"></button><input id="email_testigo8" class="entry-input" placeholder="Correo electrónico"></div>
+        <div class="campo"><button class="btn-rojo" data-key="objeto_testigo8"></button><input id="objeto_testigo8" class="entry-input" placeholder="Hechos sobre los que declarará"></div>
+    </div>
+    </div>
+
+    <!-- ===== PAGINA 6: OTROS CAMPOS ===== -->
+    <div id="pagina-otros" class="pagina-entries" style="display:none;">
+        <h4>Otros Campos</h4>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="nombre_abogado"></button>
+            <input id="nombre_abogado" class="entry-input" placeholder="Nombre del abogado">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="matricula_abogado"></button>
+            <input id="matricula_abogado" class="entry-input" placeholder="Matrícula / Foro">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="unidad_judicial"></button>
+            <input id="unidad_judicial" class="entry-input" placeholder="Unidad Judicial">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="juzgador"></button>
+            <input id="juzgador" class="entry-input" placeholder="Juzgador">
+        </div>
+    </div>
+
+    <!-- ===== PAGINA 7: PRUEBAS ===== -->
+    <div id="pagina-pruebas" class="pagina-entries" style="display:none;">
+        <h4>Pruebas</h4>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="documento_prueba_1"></button>
+            <input id="documento_prueba_1" class="entry-input" placeholder="Documento prueba 1">
+        </div>
+        <div class="campo">
+            <button class="btn-rojo" data-key="descripcion_prueba_1"></button>
+            <input id="descripcion_prueba_1" class="entry-input" placeholder="Descripción prueba 1">
+        </div>
+        <div class="campo">
+            <button class="btn-rojo" data-key="finalidad_prueba_1"></button>
+            <input id="finalidad_prueba_1" class="entry-input" placeholder="Finalidad prueba 1">
+        </div>
+        <div class="campo">
+            <button class="btn-rojo" data-key="fecha_documento_prueba_1"></button>
+            <input id="fecha_documento_prueba_1" class="entry-input" placeholder="Fecha documento prueba 1">
+        </div>
+        <div class="campo">
+            <button class="btn-rojo" data-key="emisor_documento_prueba_1"></button>
+            <input id="emisor_documento_prueba_1" class="entry-input" placeholder="Emisor documento prueba 1">
+        </div>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="documento_prueba_2"></button>
+            <input id="documento_prueba_2" class="entry-input" placeholder="Documento prueba 2">
+        </div>
+        <div class="campo">
+            <button class="btn-rojo" data-key="descripcion_prueba_2"></button>
+            <input id="descripcion_prueba_2" class="entry-input" placeholder="Descripción prueba 2">
+        </div>
+        <div class="campo">
+            <button class="btn-rojo" data-key="finalidad_prueba_2"></button>
+            <input id="finalidad_prueba_2" class="entry-input" placeholder="Finalidad prueba 2">
+        </div>
+
+        <h4>Prueba Pericial</h4>
+        <div class="campo">
+            <button class="btn-rojo" data-key="nombre_perito_1"></button>
+            <input id="nombre_perito_1" class="entry-input" placeholder="Nombre del perito">
+        </div>
+        <div class="campo">
+            <button class="btn-rojo" data-key="cedula_perito_1"></button>
+            <input id="cedula_perito_1" class="entry-input" placeholder="Cédula del perito">
+        </div>
+        <div class="campo">
+            <button class="btn-rojo" data-key="profesion_perito_1"></button>
+            <input id="profesion_perito_1" class="entry-input" placeholder="Profesión del perito">
+        </div>
+        <div class="campo">
+            <button class="btn-rojo" data-key="especialidad_perito_1"></button>
+            <input id="especialidad_perito_1" class="entry-input" placeholder="Especialidad del perito">
+        </div>
+        <div class="campo">
+            <button class="btn-rojo" data-key="objeto_pericia_1"></button>
+            <input id="objeto_pericia_1" class="entry-input" placeholder="Objeto de pericia">
+        </div>
+        <div class="campo">
+            <button class="btn-rojo" data-key="puntos_pericia_1"></button>
+            <input id="puntos_pericia_1" class="entry-input" placeholder="Puntos de pericia">
+        </div>
+        <div class="campo">
+            <button class="btn-rojo" data-key="conclusion_pericia_1"></button>
+            <input id="conclusion_pericia_1" class="entry-input" placeholder="Conclusión de pericia">
+        </div>
+
+        <h4>Inspección Judicial</h4>
+        <div class="campo">
+            <button class="btn-rojo" data-key="lugar_inspeccion"></button>
+            <input id="lugar_inspeccion" class="entry-input" placeholder="Lugar de inspección">
+        </div>
+        <div class="campo">
+            <button class="btn-rojo" data-key="objeto_inspeccion"></button>
+            <input id="objeto_inspeccion" class="entry-input" placeholder="Objeto de inspección">
+        </div>
+        <div class="campo">
+            <button class="btn-rojo" data-key="finalidad_inspeccion"></button>
+            <input id="finalidad_inspeccion" class="entry-input" placeholder="Finalidad de inspección">
+        </div>
+        <div class="campo">
+            <button class="btn-rojo" data-key="fecha_inspeccion"></button>
+            <input id="fecha_inspeccion" class="entry-input" placeholder="Fecha de inspección">
+        </div>
+    </div>
+
+    <!-- ===== PAGINA 8: PRETENSIONES ===== -->
+    <div id="pagina-pretensiones" class="pagina-entries" style="display:none;">
+        <h4>Peticiones / Pretensiones</h4>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="pretension_1"></button>
+            <input id="pretension_1" class="entry-input" placeholder="Pretensión 1">
+        </div>
+        <div class="campo">
+            <button class="btn-rojo" data-key="pretension_2"></button>
+            <input id="pretension_2" class="entry-input" placeholder="Pretensión 2">
+        </div>
+        <div class="campo">
+            <button class="btn-rojo" data-key="pretension_3"></button>
+            <input id="pretension_3" class="entry-input" placeholder="Pretensión 3">
+        </div>
+        <div class="campo">
+            <button class="btn-rojo" data-key="pretension_4"></button>
+            <input id="pretension_4" class="entry-input" placeholder="Pretensión 4">
+        </div>
+        <div class="campo">
+            <button class="btn-rojo" data-key="pretension_5"></button>
+            <input id="pretension_5" class="entry-input" placeholder="Pretensión 5">
+        </div>
+        <div class="campo">
+            <button class="btn-rojo" data-key="pretension_6"></button>
+            <input id="pretension_6" class="entry-input" placeholder="Pretensión 6">
+        </div>
+        <div class="campo">
+            <button class="btn-rojo" data-key="pretension_7"></button>
+            <input id="pretension_7" class="entry-input" placeholder="Pretensión 7">
+        </div>
+        <div class="campo">
+            <button class="btn-rojo" data-key="pretension_8"></button>
+            <input id="pretension_8" class="entry-input" placeholder="Pretensión 8">
+        </div>
+        <div class="campo">
+            <button class="btn-rojo" data-key="pretension_9"></button>
+            <input id="pretension_9" class="entry-input" placeholder="Pretensión 9">
+        </div>
+        <div class="campo">
+            <button class="btn-rojo" data-key="pretension_10"></button>
+            <input id="pretension_10" class="entry-input" placeholder="Pretensión 10">
+        </div>
+    </div>
+
+    <!-- ===== PAGINA 9: FUNDAMENTOS ===== -->
+    <div id="pagina-fundamentos" class="pagina-entries" style="display:none;">
+        <h4>Fundamentos de Derecho</h4>
+
+        <div class="campo">
+            <button class="btn-rojo" data-key="fundamento_derecho_1"></button>
+            <input id="fundamento_derecho_1" class="entry-input" placeholder="Fundamento 1">
+        </div>
+        <div class="campo">
+            <button class="btn-rojo" data-key="fundamento_derecho_2"></button>
+            <input id="fundamento_derecho_2" class="entry-input" placeholder="Fundamento 2">
+        </div>
+        <div class="campo">
+            <button class="btn-rojo" data-key="fundamento_derecho_3"></button>
+            <input id="fundamento_derecho_3" class="entry-input" placeholder="Fundamento 3">
+        </div>
+        <div class="campo">
+            <button class="btn-rojo" data-key="fundamento_derecho_4"></button>
+            <input id="fundamento_derecho_4" class="entry-input" placeholder="Fundamento 4">
+        </div>
+        <div class="campo">
+            <button class="btn-rojo" data-key="fundamento_derecho_5"></button>
+            <input id="fundamento_derecho_5" class="entry-input" placeholder="Fundamento 5">
+        </div>
+
+        <h4>Normas / Artículos</h4>
+        <div class="campo">
+            <button class="btn-rojo" data-key="norma_1"></button>
+            <input id="norma_1" class="entry-input" placeholder="Norma 1">
+        </div>
+        <div class="campo">
+            <button class="btn-rojo" data-key="norma_2"></button>
+            <input id="norma_2" class="entry-input" placeholder="Norma 2">
+        </div>
+        <div class="campo">
+            <button class="btn-rojo" data-key="norma_3"></button>
+            <input id="norma_3" class="entry-input" placeholder="Norma 3">
+        </div>
+        <div class="campo">
+            <button class="btn-rojo" data-key="articulo_norma_1"></button>
+            <input id="articulo_norma_1" class="entry-input" placeholder="Artículo norma 1">
+        </div>
+        <div class="campo">
+            <button class="btn-rojo" data-key="articulo_norma_2"></button>
+            <input id="articulo_norma_2" class="entry-input" placeholder="Artículo norma 2">
+        </div>
+        <div class="campo">
+            <button class="btn-rojo" data-key="descripcion_norma_1"></button>
+            <input id="descripcion_norma_1" class="entry-input" placeholder="Descripción norma 1">
+        </div>
+        <div class="campo">
+            <button class="btn-rojo" data-key="descripcion_norma_2"></button>
+            <input id="descripcion_norma_2" class="entry-input" placeholder="Descripción norma 2">
+        </div>
+    </div>
+
+    <!-- ===== PAGINA 10: PROCESO ===== -->
+    <div id="pagina-proceso" class="pagina-entries" style="display:none;">
+        <h4>Identificación del Proceso</h4>
+        <div class="campo"><button class="btn-rojo" data-key="tipo_accion"></button><input id="tipo_accion" class="entry-input" placeholder="Tipo de acción"></div>
+        <div class="campo"><button class="btn-rojo" data-key="materia_proceso"></button><input id="materia_proceso" class="entry-input" placeholder="Materia del proceso"></div>
+        <div class="campo"><button class="btn-rojo" data-key="submateria_proceso"></button><input id="submateria_proceso" class="entry-input" placeholder="Submateria"></div>
+        <div class="campo"><button class="btn-rojo" data-key="procedimiento_tipo"></button><input id="procedimiento_tipo" class="entry-input" placeholder="Tipo de procedimiento"></div>
+        <div class="campo"><button class="btn-rojo" data-key="cuantia"></button><input id="cuantia" class="entry-input" placeholder="Cuantía"></div>
+        <div class="campo"><button class="btn-rojo" data-key="cuantia_total"></button><input id="cuantia_total" class="entry-input" placeholder="Cuantía total"></div>
+        <div class="campo"><button class="btn-rojo" data-key="sala_juzgado"></button><input id="sala_juzgado" class="entry-input" placeholder="Sala del juzgado"></div>
+        <div class="campo"><button class="btn-rojo" data-key="ciudad_juicio"></button><input id="ciudad_juicio" class="entry-input" placeholder="Ciudad del juicio"></div>
+        <div class="campo"><button class="btn-rojo" data-key="canton_juicio"></button><input id="canton_juicio" class="entry-input" placeholder="Cantón del juicio"></div>
+        <div class="campo"><button class="btn-rojo" data-key="provincia_juicio"></button><input id="provincia_juicio" class="entry-input" placeholder="Provincia del juicio"></div>
+        <div class="campo"><button class="btn-rojo" data-key="fecha_presentacion"></button><input id="fecha_presentacion" class="entry-input" placeholder="Fecha de presentación"></div>
+        <div class="campo"><button class="btn-rojo" data-key="fecha_escrito"></button><input id="fecha_escrito" class="entry-input" placeholder="Fecha del escrito"></div>
+        <div class="campo"><button class="btn-rojo" data-key="numero_expediente"></button><input id="numero_expediente" class="entry-input" placeholder="Número de expediente"></div>
+    </div>
+
+    <!-- ===== PAGINA 11: NOTIFICACIONES ===== -->
+    <div id="pagina-notificaciones" class="pagina-entries" style="display:none;">
+        <h4>Notificaciones</h4>
+        <div class="campo"><button class="btn-rojo" data-key="correo_notificacion"></button><input id="correo_notificacion" class="entry-input" placeholder="Correo de notificación"></div>
+        <div class="campo"><button class="btn-rojo" data-key="casillero_electronico_actor"></button><input id="casillero_electronico_actor" class="entry-input" placeholder="Casillero electrónico actor"></div>
+        <div class="campo"><button class="btn-rojo" data-key="casillero_electronico_actor_2"></button><input id="casillero_electronico_actor_2" class="entry-input" placeholder="Casillero electrónico actor 2"></div>
+        <div class="campo"><button class="btn-rojo" data-key="casillero_electronico_demandado"></button><input id="casillero_electronico_demandado" class="entry-input" placeholder="Casillero electrónico demandado"></div>
+        <div class="campo"><button class="btn-rojo" data-key="casillero_judicial_actor"></button><input id="casillero_judicial_actor" class="entry-input" placeholder="Casillero judicial actor"></div>
+        <div class="campo"><button class="btn-rojo" data-key="casillero_judicial_actor_2"></button><input id="casillero_judicial_actor_2" class="entry-input" placeholder="Casillero judicial actor 2"></div>
+        <div class="campo"><button class="btn-rojo" data-key="casillero_judicial_demandado"></button><input id="casillero_judicial_demandado" class="entry-input" placeholder="Casillero judicial demandado"></div>
+        <div class="campo"><button class="btn-rojo" data-key="direccion_citacion_demandado"></button><input id="direccion_citacion_demandado" class="entry-input" placeholder="Dirección citación demandado"></div>
+    </div>
+
+    <!-- ===== PAGINA 12: EXCEPCIONES Y DEFENSA ===== -->
+    <div id="pagina-excepciones" class="pagina-entries" style="display:none;">
+        <h4>Excepciones</h4>
+        <div class="campo"><button class="btn-rojo" data-key="excepcion_1"></button><input id="excepcion_1" class="entry-input" placeholder="Excepción 1"></div>
+        <div class="campo"><button class="btn-rojo" data-key="excepcion_2"></button><input id="excepcion_2" class="entry-input" placeholder="Excepción 2"></div>
+        <div class="campo"><button class="btn-rojo" data-key="excepcion_3"></button><input id="excepcion_3" class="entry-input" placeholder="Excepción 3"></div>
+        <div class="campo"><button class="btn-rojo" data-key="excepcion_4"></button><input id="excepcion_4" class="entry-input" placeholder="Excepción 4"></div>
+        <div class="campo"><button class="btn-rojo" data-key="excepcion_5"></button><input id="excepcion_5" class="entry-input" placeholder="Excepción 5"></div>
+        <div class="campo"><button class="btn-rojo" data-key="excepcion_6"></button><input id="excepcion_6" class="entry-input" placeholder="Excepción 6"></div>
+        <div class="campo"><button class="btn-rojo" data-key="excepciones_contestacion"></button><input id="excepciones_contestacion" class="entry-input" placeholder="Excepciones contestación"></div>
+
+        <h4>Hechos de Defensa</h4>
+        <div class="campo"><button class="btn-rojo" data-key="hecho_defensa_1"></button><input id="hecho_defensa_1" class="entry-input" placeholder="Hecho de defensa 1"></div>
+        <div class="campo"><button class="btn-rojo" data-key="hecho_defensa_2"></button><input id="hecho_defensa_2" class="entry-input" placeholder="Hecho de defensa 2"></div>
+        <div class="campo"><button class="btn-rojo" data-key="hecho_defensa_3"></button><input id="hecho_defensa_3" class="entry-input" placeholder="Hecho de defensa 3"></div>
+        <div class="campo"><button class="btn-rojo" data-key="hecho_defensa_4"></button><input id="hecho_defensa_4" class="entry-input" placeholder="Hecho de defensa 4"></div>
+        <div class="campo"><button class="btn-rojo" data-key="hecho_defensa_5"></button><input id="hecho_defensa_5" class="entry-input" placeholder="Hecho de defensa 5"></div>
+        <div class="campo"><button class="btn-rojo" data-key="hecho_defensa_6"></button><input id="hecho_defensa_6" class="entry-input" placeholder="Hecho de defensa 6"></div>
+        <div class="campo"><button class="btn-rojo" data-key="hecho_defensa_7"></button><input id="hecho_defensa_7" class="entry-input" placeholder="Hecho de defensa 7"></div>
+        <div class="campo"><button class="btn-rojo" data-key="hecho_defensa_8"></button><input id="hecho_defensa_8" class="entry-input" placeholder="Hecho de defensa 8"></div>
+    </div>
+
+    <!-- ===== PAGINA 13: PRONUNCIAMIENTO ===== -->
+    <div id="pagina-pronunciamiento" class="pagina-entries" style="display:none;">
+        <h4>Pronunciamiento sobre Pretensiones</h4>
+        <div class="campo"><button class="btn-rojo" data-key="pronunciamiento_pretension_1"></button><input id="pronunciamiento_pretension_1" class="entry-input" placeholder="Pronunciamiento pretensión 1"></div>
+        <div class="campo"><button class="btn-rojo" data-key="pronunciamiento_pretension_2"></button><input id="pronunciamiento_pretension_2" class="entry-input" placeholder="Pronunciamiento pretensión 2"></div>
+        <div class="campo"><button class="btn-rojo" data-key="pronunciamiento_pretension_3"></button><input id="pronunciamiento_pretension_3" class="entry-input" placeholder="Pronunciamiento pretensión 3"></div>
+        <div class="campo"><button class="btn-rojo" data-key="pronunciamiento_pretension_4"></button><input id="pronunciamiento_pretension_4" class="entry-input" placeholder="Pronunciamiento pretensión 4"></div>
+        <div class="campo"><button class="btn-rojo" data-key="pronunciamiento_pretension_5"></button><input id="pronunciamiento_pretension_5" class="entry-input" placeholder="Pronunciamiento pretensión 5"></div>
+        <div class="campo"><button class="btn-rojo" data-key="pronunciamiento_pretension_6"></button><input id="pronunciamiento_pretension_6" class="entry-input" placeholder="Pronunciamiento pretensión 6"></div>
+
+        <h4>Pronunciamiento sobre Hechos</h4>
+        <div class="campo"><button class="btn-rojo" data-key="pronunciamiento_hecho_1"></button><input id="pronunciamiento_hecho_1" class="entry-input" placeholder="Pronunciamiento hecho 1"></div>
+        <div class="campo"><button class="btn-rojo" data-key="pronunciamiento_hecho_2"></button><input id="pronunciamiento_hecho_2" class="entry-input" placeholder="Pronunciamiento hecho 2"></div>
+        <div class="campo"><button class="btn-rojo" data-key="pronunciamiento_hecho_3"></button><input id="pronunciamiento_hecho_3" class="entry-input" placeholder="Pronunciamiento hecho 3"></div>
+        <div class="campo"><button class="btn-rojo" data-key="pronunciamiento_hecho_4"></button><input id="pronunciamiento_hecho_4" class="entry-input" placeholder="Pronunciamiento hecho 4"></div>
+        <div class="campo"><button class="btn-rojo" data-key="pronunciamiento_hecho_5"></button><input id="pronunciamiento_hecho_5" class="entry-input" placeholder="Pronunciamiento hecho 5"></div>
+        <div class="campo"><button class="btn-rojo" data-key="pronunciamiento_hecho_6"></button><input id="pronunciamiento_hecho_6" class="entry-input" placeholder="Pronunciamiento hecho 6"></div>
+    </div>
+
+    <!-- ===== PAGINA 14: LABORAL / ECONÓMICO ===== -->
+    <div id="pagina-laboral" class="pagina-entries" style="display:none;">
+        <h4>Datos Laborales</h4>
+        <div class="campo"><button class="btn-rojo" data-key="empresa_trabajo"></button><input id="empresa_trabajo" class="entry-input" placeholder="Empresa / Empleador"></div>
+        <div class="campo"><button class="btn-rojo" data-key="cargo_trabajo"></button><input id="cargo_trabajo" class="entry-input" placeholder="Cargo / Puesto"></div>
+        <div class="campo"><button class="btn-rojo" data-key="salario"></button><input id="salario" class="entry-input" placeholder="Salario / Sueldo"></div>
+        <div class="campo"><button class="btn-rojo" data-key="tipo_contrato"></button><input id="tipo_contrato" class="entry-input" placeholder="Tipo de contrato"></div>
+        <div class="campo"><button class="btn-rojo" data-key="fecha_ingreso_trabajo"></button><input id="fecha_ingreso_trabajo" class="entry-input" placeholder="Fecha de ingreso al trabajo"></div>
+        <div class="campo"><button class="btn-rojo" data-key="afiliacion_iess"></button><input id="afiliacion_iess" class="entry-input" placeholder="Afiliación IESS"></div>
+        <div class="campo"><button class="btn-rojo" data-key="numero_iess"></button><input id="numero_iess" class="entry-input" placeholder="Número IESS"></div>
+
+        <h4>Datos Económicos</h4>
+        <div class="campo"><button class="btn-rojo" data-key="ingresos_mensuales"></button><input id="ingresos_mensuales" class="entry-input" placeholder="Ingresos mensuales"></div>
+        <div class="campo"><button class="btn-rojo" data-key="egresos_mensuales"></button><input id="egresos_mensuales" class="entry-input" placeholder="Egresos mensuales"></div>
+        <div class="campo"><button class="btn-rojo" data-key="gastos_alimentacion"></button><input id="gastos_alimentacion" class="entry-input" placeholder="Gastos alimentación"></div>
+        <div class="campo"><button class="btn-rojo" data-key="gastos_vivienda"></button><input id="gastos_vivienda" class="entry-input" placeholder="Gastos vivienda"></div>
+        <div class="campo"><button class="btn-rojo" data-key="gastos_educacion"></button><input id="gastos_educacion" class="entry-input" placeholder="Gastos educación"></div>
+        <div class="campo"><button class="btn-rojo" data-key="gastos_salud"></button><input id="gastos_salud" class="entry-input" placeholder="Gastos salud"></div>
+        <div class="campo"><button class="btn-rojo" data-key="gastos_transporte"></button><input id="gastos_transporte" class="entry-input" placeholder="Gastos transporte"></div>
+        <div class="campo"><button class="btn-rojo" data-key="carga_familiar"></button><input id="carga_familiar" class="entry-input" placeholder="Carga familiar"></div>
+        <div class="campo"><button class="btn-rojo" data-key="numero_hijos"></button><input id="numero_hijos" class="entry-input" placeholder="Número de hijos"></div>
+        <div class="campo"><button class="btn-rojo" data-key="danos_perjuicios"></button><input id="danos_perjuicios" class="entry-input" placeholder="Daños y perjuicios"></div>
+        <div class="campo"><button class="btn-rojo" data-key="intereses"></button><input id="intereses" class="entry-input" placeholder="Intereses"></div>
+    </div>
+
+    </div> <!-- fin contenedorEntriesFijos -->
+
+        <!-- BOTONES DE NAVEGACION -->
         <div class="barra-acciones">
             <div class="nav-der">
                 <button class="btn btn-nav" onclick="anterior()">⬅ Anterior</button>
@@ -606,7 +1521,8 @@
 
 </div>
 
-<script src="/static/script.js?v=127"></script>
+<script src="/static/variables_maestro.js?v=3"></script>
+<script src="/static/script.js?v=137"></script>
 
 
 <!-- CONFIG -->

@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, Depends, HTTPException
+from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, Form
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -14,6 +14,7 @@ from docx import Document
 import os
 import sys
 import re
+import datetime
 
 # 🔧 FIX: la consola de Windows (cp1252) no puede imprimir emojis/acentos
 # raros y UN CRASH de print() rompía el análisis completo (la IA devolvía
@@ -396,3 +397,429 @@ def cargar_html(nombre: str):
             return {"html": f.read()}
 
     return {"html": None}
+
+
+# ============================================================
+# 📚 REPOSITORIO DE DOCUMENTOS BASE
+# ============================================================
+
+@app.get("/api/documentos-base")
+def listar_documentos_base():
+    from drive import (
+        leer_registro_documentos_base,
+        obtener_carpeta_archivos_base,
+        leer_datos_documento_base,
+    )
+    service = get_service()
+    registro = leer_registro_documentos_base(service)
+    documentos = registro.get("documentos", [])
+    for doc in documentos:
+        datos_cache = leer_datos_documento_base(service, doc["id"])
+        doc["tiene_datos"] = datos_cache is not None and datos_cache.get("texto")
+    return {"documentos": documentos}
+
+
+@app.post("/api/documentos-base/subir")
+async def subir_documento_base_endpoint(
+    file: UploadFile = File(...),
+    nombre: str = Form(""),
+    categoria: str = Form(""),
+    subcategoria: str = Form(""),
+    procedimiento: str = Form(""),
+    descripcion: str = Form(""),
+):
+    from drive import (
+        leer_registro_documentos_base,
+        guardar_registro_documentos_base,
+        subir_documento_base,
+        guardar_datos_documento_base,
+        guardar_config_documento_base,
+    )
+    from ia import detectar_variables
+
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="No se proporcionó archivo")
+
+    file_bytes = await file.read()
+
+    doc_id = generar_hash(nombre.lower().strip() or file.filename)
+
+    service = get_service()
+    subir_documento_base(service, doc_id, file_bytes, file.filename)
+
+    texto = ""
+    ruta_temp = f"temp_base_{file.filename}"
+    with open(ruta_temp, "wb") as buffer:
+        buffer.write(file_bytes)
+
+    nombre_min = file.filename.lower()
+    if nombre_min.endswith(".docx"):
+        texto = leer_docx(ruta_temp)
+    elif nombre_min.endswith(".doc"):
+        ruta_conv = convertir_doc_a_docx(ruta_temp)
+        if ruta_conv:
+            texto = leer_docx(ruta_conv)
+    elif nombre_min.endswith(".pdf"):
+        ruta_conv = convertir_pdf_a_docx(ruta_temp)
+        if ruta_conv:
+            texto = leer_docx(ruta_conv)
+
+    if os.path.exists(ruta_temp):
+        os.remove(ruta_temp)
+
+    config = None
+    if texto:
+        try:
+            variables = detectar_variables(texto)
+            config = {
+                "variables": variables if variables else [],
+                "version": 1,
+            }
+            guardar_config_documento_base(service, doc_id, config)
+            print(f"🔑 Detectadas {len(config['variables'])} variables en {doc_id}")
+            for v in config['variables']:
+                print(f"   - {v['key']}: {v['marcador']}")
+        except Exception as e:
+            print(f"⚠️ Error detectando variables: {e}")
+            config = {"variables": [], "version": 1}
+            guardar_config_documento_base(service, doc_id, config)
+
+        guardar_datos_documento_base(service, doc_id, {
+            "texto": texto,
+            "texto_original": texto,
+            "prompt_usado": "",
+            "prompt_version": PROMPT_VERSION,
+        })
+
+    registro = leer_registro_documentos_base(service)
+
+    nuevo_doc = {
+        "id": doc_id,
+        "nombre": nombre.strip() or file.filename,
+        "categoria": (categoria or "OTROS").upper().strip(),
+        "subcategoria": subcategoria.strip() or None,
+        "procedimiento": (procedimiento or "").strip() or None,
+        "descripcion": descripcion.strip(),
+        "archivo_nombre": file.filename,
+        "fecha_creacion": datetime.datetime.now().isoformat(),
+        "fecha_modificacion": datetime.datetime.now().isoformat(),
+        "version": 1,
+    }
+
+    registro["documentos"].append(nuevo_doc)
+    guardar_registro_documentos_base(service, registro)
+
+    print(f"📚 DOCUMENTO BASE SUBIDO: {nuevo_doc['nombre']}")
+
+    respuesta = {"ok": True, "documento": nuevo_doc}
+
+    if config:
+        respuesta["config"] = config
+
+    if texto:
+        from ia import sugerir_clasificacion
+        try:
+            sugerencia = sugerir_clasificacion(texto)
+            if sugerencia:
+                respuesta["sugerencia"] = sugerencia
+        except Exception as e:
+            print(f"⚠️ Error sugiriendo clasificación: {e}")
+
+    return respuesta
+
+
+@app.delete("/api/documentos-base/{doc_id}")
+def eliminar_documento_base_endpoint(doc_id: str):
+    from drive import (
+        leer_registro_documentos_base,
+        guardar_registro_documentos_base,
+        eliminar_documento_base_completo,
+    )
+
+    service = get_service()
+    registro = leer_registro_documentos_base(service)
+    documentos = registro.get("documentos", [])
+    encontrado = False
+
+    for doc in documentos:
+        if doc["id"] == doc_id:
+            encontrado = True
+            break
+
+    if not encontrado:
+        raise HTTPException(status_code=404, detail="Documento base no encontrado")
+
+    try:
+        eliminar_documento_base_completo(service, doc_id)
+    except Exception as e:
+        print(f"⚠️ Error eliminando carpeta en Drive (continuando): {e}")
+
+    registro["documentos"] = [d for d in documentos if d["id"] != doc_id]
+    guardar_registro_documentos_base(service, registro)
+
+    print(f"🗑 DOCUMENTO BASE ELIMINADO: {doc_id}")
+    return {"ok": True}
+
+
+@app.patch("/api/documentos-base/{doc_id}")
+async def actualizar_documento_base_endpoint(
+    doc_id: str,
+    nombre: str = Form(""),
+    categoria: str = Form(""),
+    subcategoria: str = Form(""),
+    procedimiento: str = Form(""),
+    descripcion: str = Form(""),
+    archivo: UploadFile = File(None),
+):
+    from drive import (
+        leer_registro_documentos_base,
+        guardar_registro_documentos_base,
+        subir_documento_base,
+        guardar_datos_documento_base,
+        guardar_config_documento_base,
+    )
+    from ia import detectar_variables
+
+    service = get_service()
+    registro = leer_registro_documentos_base(service)
+    documentos = registro.get("documentos", [])
+
+    encontrado = False
+    for doc in documentos:
+        if doc["id"] == doc_id:
+            encontrado = True
+            if categoria:
+                doc["categoria"] = categoria
+            if subcategoria is not None:
+                doc["subcategoria"] = subcategoria or None
+            if procedimiento is not None:
+                doc["procedimiento"] = procedimiento or None
+            if nombre:
+                doc["nombre"] = nombre
+            if descripcion is not None:
+                doc["descripcion"] = descripcion
+            doc["fecha_modificacion"] = datetime.datetime.now().isoformat()
+            break
+
+    if not encontrado:
+        raise HTTPException(status_code=404, detail="Documento base no encontrado")
+
+    if archivo and archivo.filename:
+        file_bytes = await archivo.read()
+
+        subir_documento_base(service, doc_id, file_bytes, archivo.filename)
+
+        texto = ""
+        ruta_temp = f"temp_edit_{archivo.filename}"
+        with open(ruta_temp, "wb") as buffer:
+            buffer.write(file_bytes)
+
+        nombre_min = archivo.filename.lower()
+        if nombre_min.endswith(".docx"):
+            texto = leer_docx(ruta_temp)
+        elif nombre_min.endswith(".doc"):
+            ruta_conv = convertir_doc_a_docx(ruta_temp)
+            if ruta_conv:
+                texto = leer_docx(ruta_conv)
+        elif nombre_min.endswith(".pdf"):
+            ruta_conv = convertir_pdf_a_docx(ruta_temp)
+            if ruta_conv:
+                texto = leer_docx(ruta_conv)
+
+        if os.path.exists(ruta_temp):
+            os.remove(ruta_temp)
+
+        if texto:
+            config = None
+            try:
+                variables = detectar_variables(texto)
+                config = {
+                    "variables": variables if variables else [],
+                    "version": 1,
+                }
+                guardar_config_documento_base(service, doc_id, config)
+                print(f"🔑 Detectadas {len(config['variables'])} variables en {doc_id}")
+            except Exception as e:
+                print(f"⚠️ Error detectando variables: {e}")
+                config = {"variables": [], "version": 1}
+                guardar_config_documento_base(service, doc_id, config)
+
+            guardar_datos_documento_base(service, doc_id, {
+                "texto": texto,
+                "texto_original": texto,
+                "prompt_usado": "",
+                "prompt_version": PROMPT_VERSION,
+            })
+
+            for doc in documentos:
+                if doc["id"] == doc_id:
+                    doc["archivo_nombre"] = archivo.filename
+                    break
+
+        print(f"📄 ARCHIVO REEMPLAZADO en {doc_id}: {archivo.filename}")
+
+    guardar_registro_documentos_base(service, registro)
+    print(f"✏️ DOCUMENTO BASE ACTUALIZADO: {doc_id}")
+    return {"ok": True}
+
+
+@app.post("/api/documentos-base/{doc_id}/abrir")
+def abrir_documento_base_endpoint(doc_id: str):
+    from drive import (
+        leer_registro_documentos_base,
+        leer_datos_documento_base,
+        leer_config_documento_base,
+    )
+
+    service = get_service()
+    registro = leer_registro_documentos_base(service)
+    doc_meta = None
+    for doc in registro.get("documentos", []):
+        if doc["id"] == doc_id:
+            doc_meta = doc
+            break
+
+    if not doc_meta:
+        raise HTTPException(status_code=404, detail="Documento base no encontrado")
+
+    datos_cache = leer_datos_documento_base(service, doc_id)
+
+    if not datos_cache or not datos_cache.get("texto"):
+        raise HTTPException(status_code=400, detail="El documento base no tiene datos. Suba el archivo .docx primero.")
+
+    texto = datos_cache.get("texto", "")
+    config = leer_config_documento_base(service, doc_id)
+
+    tiene_config = config is not None and config.get("mapeo") and len(config.get("mapeo", {})) > 0
+    print(f"[MEMORIA] Abriendo documento base: {doc_id}")
+    print(f"[MEMORIA] Configuración encontrada en Drive: {'SÍ' if tiene_config else 'NO'}")
+    if tiene_config:
+        print(f"[MEMORIA] Entradas en mapeo: {len(config.get('mapeo', {}))}")
+    else:
+        print(f"[MEMORIA] Se ejecutará detección dinámica de marcadores")
+
+    caso_id = f"caso_{generar_hash(doc_id + datetime.datetime.now().isoformat())[:8]}"
+    caso_documento_id = f"caso_{generar_hash(caso_id)}"
+
+    return {
+        "mensaje": "Documento base cargado",
+        "documento_id": caso_documento_id,
+        "documento_base_id": doc_id,
+        "caso_id": caso_id,
+        "texto": texto,
+        "texto_original": datos_cache.get("texto_original", texto),
+        "config": config,
+        "nombre_documento_base": doc_meta.get("nombre", ""),
+    }
+
+
+@app.post("/api/documentos-base/{doc_id}/guardar-configuracion")
+def guardar_configuracion_documento_base_endpoint(doc_id: str, data: dict = Body(...)):
+    from drive import (
+        leer_registro_documentos_base,
+        guardar_config_documento_base,
+    )
+
+    service = get_service()
+    registro = leer_registro_documentos_base(service)
+    encontrado = False
+    for doc in registro.get("documentos", []):
+        if doc["id"] == doc_id:
+            encontrado = True
+            break
+
+    if not encontrado:
+        raise HTTPException(status_code=404, detail="Documento base no encontrado")
+
+    mapeo = data.get("mapeo", {})
+    resaltados = data.get("resaltados", {})
+    config = {
+        "mapeo": mapeo,
+        "resaltados": resaltados,
+        "fecha_configuracion": datetime.datetime.now().isoformat(),
+        "config_version": 1,
+    }
+    carpeta_doc = guardar_config_documento_base(service, doc_id, config)
+    print(f"[MEMORIA] Guardando configuración: {doc_id} ({len(mapeo)} entradas, {len(resaltados)} resaltados)")
+    print(f"[MEMORIA] Carpeta destino: {carpeta_doc}")
+    print(f"[MEMORIA] Configuración guardada exitosamente en Google Drive")
+    return {"ok": True, "carpeta_doc": carpeta_doc}
+
+
+@app.post("/api/documentos-base/{doc_id}/reanalizar")
+def reanalizar_documento_base_endpoint(doc_id: str):
+    from drive import (
+        leer_registro_documentos_base,
+        leer_datos_documento_base,
+        guardar_config_documento_base,
+    )
+    from ia import detectar_variables
+
+    service = get_service()
+    registro = leer_registro_documentos_base(service)
+    doc_meta = None
+    for doc in registro.get("documentos", []):
+        if doc["id"] == doc_id:
+            doc_meta = doc
+            break
+
+    if not doc_meta:
+        raise HTTPException(status_code=404, detail="Documento base no encontrado")
+
+    datos = leer_datos_documento_base(service, doc_id)
+    texto = datos.get("texto", "") if datos else ""
+
+    if not texto:
+        raise HTTPException(status_code=400, detail="El documento base no tiene texto")
+
+    try:
+        variables = detectar_variables(texto)
+    except Exception as e:
+        print(f"⚠️ Error reanalizando: {e}")
+        variables = []
+
+    config = {
+        "variables": variables if variables else [],
+        "mapeo": {},
+        "fecha_configuracion": datetime.datetime.now().isoformat(),
+        "config_version": 1,
+    }
+    guardar_config_documento_base(service, doc_id, config)
+    print(f"🔄 REANALIZADO: {doc_id} ({len(variables)} variables)")
+    return {"ok": True, "config": config}
+
+
+@app.post("/api/documentos-base/seed")
+def seed_documento_base():
+    from drive import (
+        leer_registro_documentos_base,
+        guardar_registro_documentos_base,
+    )
+
+    service = get_service()
+    registro = leer_registro_documentos_base(service)
+
+    seed_id = generar_hash("demanda_servidumbre_paso_jurisflow")
+
+    for doc in registro.get("documentos", []):
+        if doc["id"] == seed_id:
+            return {"ok": True, "mensaje": "Ya existe"}
+
+    seed_doc = {
+        "id": seed_id,
+        "nombre": "Demanda de Servidumbre de Paso",
+        "categoria": "CIVIL",
+        "subcategoria": "Servidumbre de paso",
+        "procedimiento": "SUMARIO",
+        "descripcion": "Documento base para demanda de constitución de servidumbre de paso.",
+        "archivo_nombre": "Formato_Unico_Demanda_Servidumbre_de_Paso_JurisFlow.docx",
+        "fecha_creacion": datetime.datetime.now().isoformat(),
+        "fecha_modificacion": datetime.datetime.now().isoformat(),
+        "version": 1,
+    }
+
+    registro["documentos"].append(seed_doc)
+    guardar_registro_documentos_base(service, registro)
+
+    print("📚 SEED: Demanda de Servidumbre de Paso registrado")
+    return {"ok": True, "documento": seed_doc}
