@@ -1,4 +1,4 @@
-const VERSION_SCRIPT = 137;
+﻿const VERSION_SCRIPT = 141;
 console.log("🔥 VERSION NUEVA 🔥 v" + VERSION_SCRIPT);
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -1386,7 +1386,9 @@ let valoresOriginales = {};
 //   - el resto de campos (.entry-input normales) mantiene su
 //     comportamiento original (actualiza spans directamente).
 // ============================================================
-document.querySelectorAll(".entry-input").forEach(input => {
+function attachEntryInputListeners(input) {
+    if (input.dataset.bound === "1") return;
+    input.dataset.bound = "1";
 
     if (documentoRestaurado) return;
 
@@ -1420,28 +1422,12 @@ document.querySelectorAll(".entry-input").forEach(input => {
         }
 
         if (esTipoJuicio) {
-            // 🔧 el tipo de juicio se resalta por PALABRAS separadas
-            // (varios spans con el mismo key). Actualizar aquí el texto
-            // de todos los spans pondría el valor completo repetido en
-            // cada palabra -> duplicaba el texto al escribir.
-            //
-            // 🔧 La sincronización con el documento (reemplazar/borrar
-            // palabras del texto) ocurre SOLO al TERMINAR de editar
-            // (blur), nunca mientras se escribe. Así se evita borrar el
-            // texto cuando el Entry pasa por estados intermedios (p. ej.
-            // al seleccionar todo y reescribir la palabra completa).
             guardarEstado();
             guardarEstadoEditor();
             programarGuardado();
             programarGuardadoConfiguracion();
             guardarCampoEnMemoria(key, nuevoValor);
 
-            // 🔧 RE-SINCRONIZACIÓN DIFERIDA: al dejar de escribir 700 ms,
-            // el documento se actualiza con el valor actual del Entry
-            // (reescribe la frase / reemplaza / borra palabras). Si el
-            // Entry quedó vacío o con palabras de menos de 3 letras
-            // (p. ej. mientras se reescribe todo de cero), se espera al
-            // blur para no borrar el texto prematuramente.
             clearTimeout(timerResaltarTipo);
             timerResaltarTipo = setTimeout(() => {
                 timerResaltarTipo = null;
@@ -1495,14 +1481,11 @@ document.querySelectorAll(".entry-input").forEach(input => {
         input.addEventListener("blur", () => {
             const valor = input.value;
 
-            // si hay un re-resaltado pendiente del input, se cancela:
-            // este blur hace el trabajo de una vez
             if (timerResaltarTipo) {
                 clearTimeout(timerResaltarTipo);
                 timerResaltarTipo = null;
             }
 
-            // 🔙 DESHACER: el re-resaltado es una acción deshacible
             comprometerEdicion();
             guardarUndo();
 
@@ -1513,7 +1496,6 @@ document.querySelectorAll(".entry-input").forEach(input => {
             const valor = input.value;
             const editor = document.getElementById("editor");
 
-            // 🔙 DESHACER: el re-resaltado del nombre es deshacible
             comprometerEdicion();
             guardarUndo();
 
@@ -1547,6 +1529,10 @@ document.querySelectorAll(".entry-input").forEach(input => {
             guardarCampoEnMemoria(key, valor);
         });
     }
+}
+
+document.querySelectorAll(".entry-input").forEach(input => {
+    attachEntryInputListeners(input);
 });
 
 function toggleResaltado() {
@@ -1600,6 +1586,25 @@ function actualizarInputDesdeSpans(key) {
     input.value = spans[0].textContent.trim();
 
     guardarEstado();
+}
+
+function setupEditorToEntrySync() {
+    const editor = document.getElementById("editor");
+    if (!editor) return;
+
+    editor.addEventListener("input", () => {
+        const spans = editor.querySelectorAll("span[data-key]");
+        const synced = new Set();
+        spans.forEach(span => {
+            const key = span.getAttribute("data-key");
+            if (synced.has(key)) return;
+            synced.add(key);
+            const input = document.getElementById(key);
+            if (!input || input === document.activeElement) return;
+            const texto = span.textContent.trim();
+            input.value = texto;
+        });
+    });
 }
 
 function cargarEstado() {
@@ -1824,6 +1829,11 @@ function sincronizarTipoConEntry(valor) {
 //   Direcciones: marfil   | Datos personales: rosa   | Juicio: gris
 // ============================================================
 function colorCampo(key) {
+    const _customBlocks = ecGetCustomBloques();
+    for (const _b of _customBlocks) {
+        const _e = (_b.entries || []).find(en => en.id === key || en.variable === key);
+        if (_e && _e.color) return _e.color;
+    }
     if (key === "actor" || key === "actor_2") return "#FFD54F";
     if (key === "nombre_demandado") return "#64B5F6";
     if (/^nombre_testigo[1-8]$/.test(key)) return "#BA68C8";
@@ -2470,7 +2480,8 @@ function generarDocumento() {
 
 let modo = "actor1";
 
-const PAGINAS = ["actor1", "actor2", "demandado", "hechos", "testigos", "otros", "pruebas", "pretensiones", "fundamentos", "proceso", "notificaciones", "excepciones", "pronunciamiento", "laboral"];
+const PAGINAS_FIJAS = ["actor1", "actor2", "demandado", "hechos", "testigos", "otros", "pruebas", "pretensiones", "fundamentos", "proceso", "notificaciones", "excepciones", "pronunciamiento", "laboral"];
+let PAGINAS = [...PAGINAS_FIJAS];
 const BLOQUES_TESTIGO = ["bloque-testigo1", "bloque-testigo2", "bloque-testigo3", "bloque-testigo4", "bloque-testigo5", "bloque-testigo6", "bloque-testigo7", "bloque-testigo8"];
 let testigoActual = 0;
 
@@ -2493,6 +2504,46 @@ function mostrarPagina(nombre) {
     }
 }
 
+function rebuildPaginasDinamicas() {
+    document.querySelectorAll(".pagina-custom-dinamica").forEach(el => el.remove());
+
+    const customBlocks = ecGetCustomBloques();
+    const lastFixed = document.getElementById("pagina-laboral");
+    if (!lastFixed) return;
+    const parent = lastFixed.parentNode;
+
+    customBlocks.forEach(b => {
+        const div = document.createElement("div");
+        div.id = "pagina-" + b.id;
+        div.className = "pagina-entries pagina-custom-dinamica";
+        div.style.display = "none";
+
+        let inner = `<h4>${b.nombre}</h4>`;
+        (b.entries || []).forEach(e => {
+            inner += `<div class="campo">
+                <button class="btn-rojo" data-key="${e.id}" onmousedown="event.preventDefault()" style="background:${e.color || '#D1C4E9'}"></button>
+                <input id="${e.id}" class="entry-input" placeholder="${e.nombre}">
+            </div>`;
+        });
+        if ((b.entries || []).length === 0) {
+            inner += '<p style="color:#94a3b8; font-size:12px; padding:8px 0;">Sin entries. Edite este bloque desde EDITAR CAMPOS.</p>';
+        }
+        div.innerHTML = inner;
+        parent.insertBefore(div, lastFixed.nextSibling);
+    });
+
+    PAGINAS = [...PAGINAS_FIJAS, ...customBlocks.map(b => b.id)];
+
+    if (!PAGINAS.includes(modo)) {
+        modo = PAGINAS[0];
+        mostrarPagina(modo);
+    }
+
+    document.querySelectorAll(".pagina-custom-dinamica .entry-input").forEach(input => {
+        attachEntryInputListeners(input);
+    });
+}
+
 document.addEventListener("DOMContentLoaded", () => {
 
     colorearBotones();
@@ -2501,6 +2552,8 @@ document.addEventListener("DOMContentLoaded", () => {
     cargarChat();
 
     mostrarPagina("actor1");
+    rebuildPaginasDinamicas();
+    setupEditorToEntrySync();
 
     window.siguiente = function () {
         if (modo === "testigos") {
@@ -2664,6 +2717,11 @@ async function abrirDocumentoBase(doc) {
             mapeo = configGuardada.mapeo;
             resaltados = configGuardada.resaltados || {};
             tieneMapeoGuardado = true;
+            if (configGuardada.customBlocks) {
+                ecSaveCustomBloques(configGuardada.customBlocks);
+                rebuildPaginasDinamicas();
+                console.log("[MEMORIA] Bloques personalizados restaurados:", configGuardada.customBlocks.length);
+            }
             console.log("[MEMORIA] Configuración cargada desde Google Drive:", Object.keys(mapeo).length, "entradas");
             console.log("[MEMORIA] Resaltados restaurados:", Object.keys(resaltados).length, "marcadores");
             console.log("[MEMORIA] Restaurando Entries...");
@@ -2696,6 +2754,7 @@ async function abrirDocumentoBase(doc) {
 
         resaltarMarcadoresBase(mapeo, resaltados);
         marcarEntriesConVariables(mapeo);
+        rebuildPaginasDinamicas();
 
         if (!tieneMapeoGuardado && Object.keys(mapeo).length > 0) {
             console.log("[MEMORIA] Guardando configuración inicial automáticamente...");
@@ -2736,7 +2795,7 @@ async function guardarConfiguracionEnDrive() {
         const resp = await fetch(`/api/documentos-base/${documentoBaseId}/guardar-configuracion`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ mapeo, resaltados })
+            body: JSON.stringify({ mapeo, resaltados, customBlocks: ecGetCustomBloques() })
         });
 
         if (!resp.ok) {
@@ -3197,6 +3256,18 @@ function mapearVariableAEntrada(contenido) {
     if (/nombre/.test(c) && /victima/.test(c)) return "nombre_victima";
     if (/nombre/.test(c) && /investigad|imputado/.test(c)) return "nombre_investigado";
 
+    const _customBlocks = ecGetCustomBloques();
+    for (const _b of _customBlocks) {
+        for (const _e of (_b.entries || [])) {
+            if (_e.variable && c.includes(_e.variable.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""))) {
+                return _e.id;
+            }
+            if (_e.nombre && c.includes(_e.nombre.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""))) {
+                return _e.id;
+            }
+        }
+    }
+
     if (typeof buscarEnMaestro === "function") {
         const match = buscarEnMaestro(contenido);
         if (match && match.entryId) return match.entryId;
@@ -3260,6 +3331,7 @@ function cerrarDocumentoBase() {
     document.getElementById("editor").innerHTML = "";
     const hechosContainer = document.getElementById("entries-hechos-dinamicos");
     if (hechosContainer) hechosContainer.innerHTML = "";
+    rebuildPaginasDinamicas();
 }
 
 function subirDocumentoBase() {
@@ -3610,3 +3682,527 @@ function inicializarFiltroCategorias() {
     });
     contenedor.innerHTML = html;
 }
+
+// ============================================================
+// ✏ EDITAR CAMPOS — Modal state machine + CRUD
+// ============================================================
+
+let ecView = "blocks";
+let ecBloqueActualId = null;
+let ecEditEntryId = null;
+
+const EC_SYS_BLOCK_IDS = ["actor1", "actor2", "demandado", "testigos", "hechos", "pruebas", "pretensiones", "fundamentos", "otros", "proceso", "notificaciones", "excepciones", "pronunciamiento", "laboral"];
+const EC_SYS_BLOCK_NAMES = {
+    actor1: "ACTOR 1", actor2: "ACTOR 2", demandado: "DEMANDADO",
+    testigos: "TESTIGOS", hechos: "HECHOS", pruebas: "PRUEBAS",
+    pretensiones: "PRETENSIONES", fundamentos: "FUNDAMENTOS",
+    otros: "OTROS", proceso: "PROCESO", notificaciones: "NOTIFICACIONES",
+    excepciones: "EXCEPCIONES Y DEFENSA", pronunciamiento: "PRONUNCIAMIENTO",
+    laboral: "LABORAL / ECONÓMICO"
+};
+
+const EC_COLOR_PALETTE = [
+    "#FFD54F", "#64B5F6", "#BA68C8", "#81C784", "#4DD0E1",
+    "#FFB74D", "#BCAAA4", "#F48FB1", "#7986CB", "#C5E1A5",
+    "#EF9A9A", "#B39DDB", "#80CBC4", "#FFE082", "#D1C4E9"
+];
+
+function ecGetBloques() {
+    const custom = ecGetCustomBloques();
+    return EC_SYS_BLOCK_IDS.map(id => ({
+        id, nombre: EC_SYS_BLOCK_NAMES[id] || id.toUpperCase(), tipo: "sistema",
+        entries: ecGetEntriesForSysBlock(id)
+    })).concat(custom);
+}
+
+function ecGetEntriesForSysBlock(bloqueId) {
+    const map = {
+        actor1: [
+            { id: "actor", nombre: "Nombre del Actor", variable: "actor", color: "#FFD54F", tipo: "texto" },
+            { id: "cedula", nombre: "Cédula", variable: "cedula", color: "#4DD0E1", tipo: "texto" },
+            { id: "age", nombre: "Edad", variable: "age", color: "#F48FB1", tipo: "texto" },
+            { id: "civil", nombre: "Estado Civil", variable: "civil", color: "#F48FB1", tipo: "texto" },
+            { id: "profesion", nombre: "Profesión", variable: "profesion", color: "#F48FB1", tipo: "texto" },
+            { id: "ciudadania", nombre: "Ciudadanía", variable: "ciudadania", color: "#F48FB1", tipo: "texto" },
+            { id: "email", nombre: "Correo Electrónico", variable: "email", color: "#81C784", tipo: "texto" },
+            { id: "telefono", nombre: "Teléfono", variable: "telefono", color: "#FFB74D", tipo: "texto" },
+            { id: "parroquia", nombre: "Parroquia", variable: "parroquia", color: "#BCAAA4", tipo: "texto" },
+            { id: "barrio", nombre: "Barrio", variable: "barrio", color: "#BCAAA4", tipo: "texto" },
+            { id: "calle_principal", nombre: "Calle Principal", variable: "calle_principal", color: "#BCAAA4", tipo: "texto" },
+            { id: "calle_secundaria", nombre: "Calle Secundaria", variable: "calle_secundaria", color: "#BCAAA4", tipo: "texto" },
+            { id: "numero_casa", nombre: "Número de Casa", variable: "numero_casa", color: "#BCAAA4", tipo: "texto" },
+            { id: "codigo_postal", nombre: "Código Postal", variable: "codigo_postal", color: "#BCAAA4", tipo: "texto" },
+            { id: "direccion_domiciliaria", nombre: "Dirección Domiciliaria", variable: "direccion_domiciliaria", color: "#BCAAA4", tipo: "texto" },
+            { id: "casillero_judicial_actor", nombre: "Casillero Judicial", variable: "casillero_judicial_actor", color: "#81C784", tipo: "texto" },
+            { id: "provincia", nombre: "Provincia", variable: "provincia", color: "#BCAAA4", tipo: "texto" },
+            { id: "canton", nombre: "Cantón", variable: "canton", color: "#BCAAA4", tipo: "texto" },
+            { id: "ciudad", nombre: "Ciudad", variable: "ciudad", color: "#BCAAA4", tipo: "texto" }
+        ],
+        actor2: [
+            { id: "actor_2", nombre: "Nombre Actor 2", variable: "actor_2", color: "#FFD54F", tipo: "texto" },
+            { id: "cedula_actor_2", nombre: "Cédula", variable: "cedula_actor_2", color: "#4DD0E1", tipo: "texto" },
+            { id: "age_actor_2", nombre: "Edad", variable: "age_actor_2", color: "#F48FB1", tipo: "texto" },
+            { id: "civil_actor_2", nombre: "Estado Civil", variable: "civil_actor_2", color: "#F48FB1", tipo: "texto" },
+            { id: "profesion_actor_2", nombre: "Profesión", variable: "profesion_actor_2", color: "#F48FB1", tipo: "texto" },
+            { id: "ciudadania_actor_2", nombre: "Ciudadanía", variable: "ciudadania_actor_2", color: "#F48FB1", tipo: "texto" },
+            { id: "email_actor_2", nombre: "Correo", variable: "email_actor_2", color: "#81C784", tipo: "texto" },
+            { id: "telefono_actor_2", nombre: "Teléfono", variable: "telefono_actor_2", color: "#FFB74D", tipo: "texto" },
+            { id: "parroquia_actor_2", nombre: "Parroquia", variable: "parroquia_actor_2", color: "#BCAAA4", tipo: "texto" },
+            { id: "barrio_actor_2", nombre: "Barrio", variable: "barrio_actor_2", color: "#BCAAA4", tipo: "texto" },
+            { id: "calle_principal_actor_2", nombre: "Calle Principal", variable: "calle_principal_actor_2", color: "#BCAAA4", tipo: "texto" },
+            { id: "calle_secundaria_actor_2", nombre: "Calle Secundaria", variable: "calle_secundaria_actor_2", color: "#BCAAA4", tipo: "texto" },
+            { id: "numero_casa_actor_2", nombre: "Número de Casa", variable: "numero_casa_actor_2", color: "#BCAAA4", tipo: "texto" },
+            { id: "codigo_postal_actor_2", nombre: "Código Postal", variable: "codigo_postal_actor_2", color: "#BCAAA4", tipo: "texto" },
+            { id: "direccion_domiciliaria_actor_2", nombre: "Dirección Domiciliaria", variable: "direccion_domiciliaria_actor_2", color: "#BCAAA4", tipo: "texto" },
+            { id: "casillero_judicial_actor_2", nombre: "Casillero Judicial", variable: "casillero_judicial_actor_2", color: "#81C784", tipo: "texto" },
+            { id: "provincia_actor_2", nombre: "Provincia", variable: "provincia_actor_2", color: "#BCAAA4", tipo: "texto" },
+            { id: "canton_actor_2", nombre: "Cantón", variable: "canton_actor_2", color: "#BCAAA4", tipo: "texto" },
+            { id: "ciudad_actor_2", nombre: "Ciudad", variable: "ciudad_actor_2", color: "#BCAAA4", tipo: "texto" }
+        ],
+        demandado: [
+            { id: "nombre_demandado", nombre: "Nombre Demandado", variable: "nombre_demandado", color: "#64B5F6", tipo: "texto" },
+            { id: "cedula_demandado", nombre: "Cédula", variable: "cedula_demandado", color: "#4DD0E1", tipo: "texto" },
+            { id: "edad_demandado", nombre: "Edad", variable: "edad_demandado", color: "#F48FB1", tipo: "texto" },
+            { id: "civil_demandado", nombre: "Estado Civil", variable: "civil_demandado", color: "#F48FB1", tipo: "texto" },
+            { id: "profesion_demandado", nombre: "Profesión", variable: "profesion_demandado", color: "#F48FB1", tipo: "texto" },
+            { id: "ciudadania_demandado", nombre: "Ciudadanía", variable: "ciudadania_demandado", color: "#F48FB1", tipo: "texto" },
+            { id: "email_demandado", nombre: "Correo", variable: "email_demandado", color: "#81C784", tipo: "texto" },
+            { id: "telefono_demandado", nombre: "Teléfono", variable: "telefono_demandado", color: "#FFB74D", tipo: "texto" },
+            { id: "parroquia_demandado", nombre: "Parroquia", variable: "parroquia_demandado", color: "#BCAAA4", tipo: "texto" },
+            { id: "barrio_demandado", nombre: "Barrio", variable: "barrio_demandado", color: "#BCAAA4", tipo: "texto" },
+            { id: "calle_principal_demandado", nombre: "Calle Principal", variable: "calle_principal_demandado", color: "#BCAAA4", tipo: "texto" },
+            { id: "calle_secundaria_demandado", nombre: "Calle Secundaria", variable: "calle_secundaria_demandado", color: "#BCAAA4", tipo: "texto" },
+            { id: "numero_casa_demandado", nombre: "Número de Casa", variable: "numero_casa_demandado", color: "#BCAAA4", tipo: "texto" },
+            { id: "codigo_postal_demandado", nombre: "Código Postal", variable: "codigo_postal_demandado", color: "#BCAAA4", tipo: "texto" },
+            { id: "direccion_domiciliaria_demandado", nombre: "Dirección Domiciliaria", variable: "direccion_domiciliaria_demandado", color: "#BCAAA4", tipo: "texto" },
+            { id: "casillero_judicial_demandado", nombre: "Casillero Judicial", variable: "casillero_judicial_demandado", color: "#81C784", tipo: "texto" },
+            { id: "provincia_demandado", nombre: "Provincia", variable: "provincia_demandado", color: "#BCAAA4", tipo: "texto" },
+            { id: "canton_demandado", nombre: "Cantón", variable: "canton_demandado", color: "#BCAAA4", tipo: "texto" },
+            { id: "ciudad_demandado", nombre: "Ciudad", variable: "ciudad_demandado", color: "#BCAAA4", tipo: "texto" }
+        ],
+        testigos: [1,2,3,4,5,6,7,8].flatMap(n => [
+            { id: `nombre_testigo${n}`, nombre: `Testigo ${n} - Nombre`, variable: `nombre_testigo${n}`, color: "#BA68C8", tipo: "texto" },
+            { id: `cedula_testigo${n}`, nombre: `Testigo ${n} - Cédula`, variable: `cedula_testigo${n}`, color: "#4DD0E1", tipo: "texto" },
+            { id: `ciudad_testigo${n}`, nombre: `Testigo ${n} - Ciudad`, variable: `ciudad_testigo${n}`, color: "#BCAAA4", tipo: "texto" },
+            { id: `provincia_testigo${n}`, nombre: `Testigo ${n} - Provincia`, variable: `provincia_testigo${n}`, color: "#BCAAA4", tipo: "texto" },
+            { id: `relacion_testigo${n}`, nombre: `Testigo ${n} - Relación`, variable: `relacion_testigo${n}`, color: "#BA68C8", tipo: "texto" },
+            { id: `declaracion_testigo${n}`, nombre: `Testigo ${n} - Declaración`, variable: `declaracion_testigo${n}`, color: "#BA68C8", tipo: "texto_largo" },
+            { id: `horas_testigo${n}`, nombre: `Testigo ${n} - Horas`, variable: `horas_testigo${n}`, color: "#BA68C8", tipo: "texto" },
+            { id: `distancia_testigo${n}`, nombre: `Testigo ${n} - Distancia`, variable: `distancia_testigo${n}`, color: "#BA68C8", tipo: "texto" },
+            { id: `reconocimiento_testigo${n}`, nombre: `Testigo ${n} - Reconocimiento`, variable: `reconocimiento_testigo${n}`, color: "#BA68C8", tipo: "texto" },
+            { id: `observaciones_testigo${n}`, nombre: `Testigo ${n} - Observaciones`, variable: `observaciones_testigo${n}`, color: "#BA68C8", tipo: "texto_largo" }
+        ]),
+        hechos: [1,2,3,4,5,6,7,8,9,10].map(n => ({
+            id: `hecho_${n}`, nombre: `Hecho ${n}`, variable: `hecho_${n}`, color: "#FFCC80", tipo: "texto_largo"
+        })),
+        pruebas: [
+            { id: "documento_prueba", nombre: "Documento", variable: "documento_prueba", color: "#80CBC4", tipo: "texto" },
+            { id: "descripcion_prueba", nombre: "Descripción", variable: "descripcion_prueba", color: "#80CBC4", tipo: "texto" },
+            { id: "finalidad_prueba", nombre: "Finalidad", variable: "finalidad_prueba", color: "#80CBC4", tipo: "texto" },
+            { id: "fecha_documento_prueba", nombre: "Fecha Documento", variable: "fecha_documento_prueba", color: "#80CBC4", tipo: "fecha" },
+            { id: "emisor_documento_prueba", nombre: "Emisor", variable: "emisor_documento_prueba", color: "#80CBC4", tipo: "texto" },
+            { id: "autenticidad_prueba", nombre: "Autenticidad", variable: "autenticidad_prueba", color: "#A5D6A7", tipo: "texto" },
+            { id: "admite_prueba", nombre: "Admite", variable: "admite_prueba", color: "#A5D6A7", tipo: "texto" },
+            { id: "niega_prueba", nombre: "Niega", variable: "niega_prueba", color: "#A5D6A7", tipo: "texto" },
+            { id: "objeta_prueba", nombre: "Objeta", variable: "objeta_prueba", color: "#A5D6A7", tipo: "texto" },
+            { id: "nombre_perito", nombre: "Nombre Perito", variable: "nombre_perito", color: "#FFF176", tipo: "texto" },
+            { id: "cedula_perito", nombre: "Cédula Perito", variable: "cedula_perito", color: "#FFF176", tipo: "texto" },
+            { id: "profesion_perito", nombre: "Profesión Perito", variable: "profesion_perito", color: "#FFF176", tipo: "texto" },
+            { id: "especialidad_perito", nombre: "Especialidad Perito", variable: "especialidad_perito", color: "#FFF176", tipo: "texto" },
+            { id: "objeto_pericia", nombre: "Objeto Pericia", variable: "objeto_pericia", color: "#FFF176", tipo: "texto" },
+            { id: "puntos_pericia", nombre: "Puntos Pericia", variable: "puntos_pericia", color: "#FFF176", tipo: "texto_largo" },
+            { id: "conclusion_pericia", nombre: "Conclusión Pericia", variable: "conclusion_pericia", color: "#FFF176", tipo: "texto_largo" },
+            { id: "registro_perito", nombre: "Registro Perito", variable: "registro_perito", color: "#FFF176", tipo: "texto" },
+            { id: "correo_perito", nombre: "Correo Perito", variable: "correo_perito", color: "#FFF176", tipo: "texto" },
+            { id: "lugar_inspeccion", nombre: "Lugar Inspección", variable: "lugar_inspeccion", color: "#A5D6A7", tipo: "texto" },
+            { id: "objeto_inspeccion", nombre: "Objeto Inspección", variable: "objeto_inspeccion", color: "#A5D6A7", tipo: "texto" },
+            { id: "finalidad_inspeccion", nombre: "Finalidad Inspección", variable: "finalidad_inspeccion", color: "#A5D6A7", tipo: "texto" },
+            { id: "fecha_inspeccion", nombre: "Fecha Inspección", variable: "fecha_inspeccion", color: "#A5D6A7", tipo: "fecha" },
+            { id: "direccion_inspeccion", nombre: "Dirección Inspección", variable: "direccion_inspeccion", color: "#A5D6A7", tipo: "texto" },
+            { id: "hechos_a_verificar_inspeccion", nombre: "Hechos a Verificar", variable: "hechos_a_verificar_inspeccion", color: "#A5D6A7", tipo: "texto_largo" }
+        ],
+        pretensiones: [1,2,3,4,5,6,7,8,9,10].map(n => ({
+            id: `pretension_${n}`, nombre: `Pretensión ${n}`, variable: `pretension_${n}`, color: "#C5E1A5", tipo: "texto_largo"
+        })),
+        fundamentos: [
+            { id: "fundamento_1", nombre: "Fundamento 1", variable: "fundamento_1", color: "#B39DDB", tipo: "texto_largo" },
+            { id: "fundamento_2", nombre: "Fundamento 2", variable: "fundamento_2", color: "#B39DDB", tipo: "texto_largo" },
+            { id: "fundamento_3", nombre: "Fundamento 3", variable: "fundamento_3", color: "#B39DDB", tipo: "texto_largo" },
+            { id: "fundamento_4", nombre: "Fundamento 4", variable: "fundamento_4", color: "#B39DDB", tipo: "texto_largo" },
+            { id: "fundamento_5", nombre: "Fundamento 5", variable: "fundamento_5", color: "#B39DDB", tipo: "texto_largo" },
+            { id: "norma", nombre: "Norma Aplicable", variable: "norma", color: "#CE93D8", tipo: "texto" },
+            { id: "articulo_norma", nombre: "Artículo de Norma", variable: "articulo_norma", color: "#CE93D8", tipo: "texto" },
+            { id: "descripcion_norma", nombre: "Descripción Norma", variable: "descripcion_norma", color: "#CE93D8", tipo: "texto_largo" }
+        ],
+        otros: [
+            { id: "nombre_abogado", nombre: "Nombre Abogado", variable: "nombre_abogado", color: "#FFD54F", tipo: "texto" },
+            { id: "matricula_abogado", nombre: "Matrícula Abogado", variable: "matricula_abogado", color: "#80CBC4", tipo: "texto" },
+            { id: "unidad_judicial", nombre: "Unidad Judicial", variable: "unidad_judicial", color: "#7986CB", tipo: "texto" },
+            { id: "juzgador", nombre: "Juzgador", variable: "juzgador", color: "#7986CB", tipo: "texto" }
+        ],
+        proceso: [
+            { id: "tipo_accion", nombre: "Tipo de Acción", variable: "tipo_accion", color: "#7986CB", tipo: "texto" },
+            { id: "materia", nombre: "Materia", variable: "materia", color: "#4FC3F7", tipo: "texto" },
+            { id: "submateria", nombre: "Submateria", variable: "submateria", color: "#4FC3F7", tipo: "texto" },
+            { id: "procedimiento", nombre: "Procedimiento", variable: "procedimiento", color: "#4FC3F7", tipo: "texto" },
+            { id: "cuantia", nombre: "Cuantía", variable: "cuantia", color: "#FFE082", tipo: "texto" },
+            { id: "sala", nombre: "Sala", variable: "sala", color: "#4FC3F7", tipo: "texto" },
+            { id: "ciudad_juicio", nombre: "Ciudad Juicio", variable: "ciudad_juicio", color: "#4FC3F7", tipo: "texto" },
+            { id: "canton_juicio", nombre: "Cantón Juicio", variable: "canton_juicio", color: "#4FC3F7", tipo: "texto" },
+            { id: "provincia_juicio", nombre: "Provincia Juicio", variable: "provincia_juicio", color: "#4FC3F7", tipo: "texto" },
+            { id: "fecha_escrito", nombre: "Fecha Escrito", variable: "fecha_escrito", color: "#4FC3F7", tipo: "fecha" },
+            { id: "fecha_presentacion", nombre: "Fecha Presentación", variable: "fecha_presentacion", color: "#4FC3F7", tipo: "fecha" },
+            { id: "numero_noticia", nombre: "Número Noticia", variable: "numero_noticia", color: "#4FC3F7", tipo: "texto" },
+            { id: "numero_investigacion", nombre: "Número Investigación", variable: "numero_investigacion", color: "#4FC3F7", tipo: "texto" }
+        ],
+        notificaciones: [
+            { id: "correo_notificacion", nombre: "Correo Notificación", variable: "correo_notificacion", color: "#81C784", tipo: "texto" },
+            { id: "casillero_electronico_actor", nombre: "Casillero Electrónico Actor", variable: "casillero_electronico_actor", color: "#81C784", tipo: "texto" },
+            { id: "casillero_electronico_demandado", nombre: "Casillero Electrónico Demandado", variable: "casillero_electronico_demandado", color: "#81C784", tipo: "texto" },
+            { id: "direccion_citacion_actor", nombre: "Dirección Citación Actor", variable: "direccion_citacion_actor", color: "#BCAAA4", tipo: "texto" },
+            { id: "direccion_citacion_actor_2", nombre: "Dirección Citación Actor 2", variable: "direccion_citacion_actor_2", color: "#BCAAA4", tipo: "texto" },
+            { id: "direccion_citacion_demandado", nombre: "Dirección Citación Demandado", variable: "direccion_citacion_demandado", color: "#BCAAA4", tipo: "texto" }
+        ],
+        excepciones: [
+            { id: "excepcion_1", nombre: "Excepción 1", variable: "excepcion_1", color: "#EF9A9A", tipo: "texto" },
+            { id: "excepcion_2", nombre: "Excepción 2", variable: "excepcion_2", color: "#EF9A9A", tipo: "texto" },
+            { id: "excepcion_3", nombre: "Excepción 3", variable: "excepcion_3", color: "#EF9A9A", tipo: "texto" },
+            { id: "excepcion_4", nombre: "Excepción 4", variable: "excepcion_4", color: "#EF9A9A", tipo: "texto" },
+            { id: "excepcion_5", nombre: "Excepción 5", variable: "excepcion_5", color: "#EF9A9A", tipo: "texto" },
+            { id: "excepcion_6", nombre: "Excepción 6", variable: "excepcion_6", color: "#EF9A9A", tipo: "texto" },
+            { id: "contestacion", nombre: "Contestación", variable: "contestacion", color: "#EF9A9A", tipo: "texto_largo" },
+            { id: "hecho_defensa_1", nombre: "Hecho Defensa 1", variable: "hecho_defensa_1", color: "#EF9A9A", tipo: "texto_largo" },
+            { id: "hecho_defensa_2", nombre: "Hecho Defensa 2", variable: "hecho_defensa_2", color: "#EF9A9A", tipo: "texto_largo" },
+            { id: "hecho_defensa_3", nombre: "Hecho Defensa 3", variable: "hecho_defensa_3", color: "#EF9A9A", tipo: "texto_largo" },
+            { id: "hecho_defensa_4", nombre: "Hecho Defensa 4", variable: "hecho_defensa_4", color: "#EF9A9A", tipo: "texto_largo" },
+            { id: "hecho_defensa_5", nombre: "Hecho Defensa 5", variable: "hecho_defensa_5", color: "#EF9A9A", tipo: "texto_largo" },
+            { id: "hecho_defensa_6", nombre: "Hecho Defensa 6", variable: "hecho_defensa_6", color: "#EF9A9A", tipo: "texto_largo" },
+            { id: "hecho_defensa_7", nombre: "Hecho Defensa 7", variable: "hecho_defensa_7", color: "#EF9A9A", tipo: "texto_largo" },
+            { id: "hecho_defensa_8", nombre: "Hecho Defensa 8", variable: "hecho_defensa_8", color: "#EF9A9A", tipo: "texto_largo" }
+        ],
+        pronunciamiento: [
+            { id: "admite_pretension", nombre: "Admite Pretensión", variable: "admite_pretension", color: "#C5E1A5", tipo: "texto_largo" },
+            { id: "niega_pretension", nombre: "Niega Pretensión", variable: "niega_pretension", color: "#C5E1A5", tipo: "texto_largo" },
+            { id: "acepta_hechos", nombre: "Acepta Hechos", variable: "acepta_hechos", color: "#C5E1A5", tipo: "texto_largo" },
+            { id: "se_opone_hechos", nombre: "Se Opone Hechos", variable: "se_opone_hechos", color: "#C5E1A5", tipo: "texto_largo" },
+            { id: "no_le_consta_hechos", nombre: "No Le Constata Hechos", variable: "no_le_consta_hechos", color: "#C5E1A5", tipo: "texto_largo" },
+            { id: "pronunciamiento_excepciones", nombre: "Pronunciamiento Excepciones", variable: "pronunciamiento_excepciones", color: "#C5E1A5", tipo: "texto_largo" }
+        ],
+        laboral: [
+            { id: "salario", nombre: "Salario", variable: "salario", color: "#FFE082", tipo: "texto" },
+            { id: "ingresos", nombre: "Ingresos", variable: "ingresos", color: "#FFE082", tipo: "texto" },
+            { id: "egresos", nombre: "Egresos", variable: "egresos", color: "#FFE082", tipo: "texto" },
+            { id: "gastos", nombre: "Gastos", variable: "gastos", color: "#FFE082", tipo: "texto" },
+            { id: "carga_familiar", nombre: "Carga Familiar", variable: "carga_familiar", color: "#FFE082", tipo: "texto" },
+            { id: "personas_a_cargo", nombre: "Personas a Cargo", variable: "personas_a_cargo", color: "#FFE082", tipo: "texto" },
+            { id: "numero_hijos", nombre: "Número Hijos", variable: "numero_hijos", color: "#FFE082", tipo: "texto" },
+            { id: "empresa", nombre: "Empresa", variable: "empresa", color: "#FFE082", tipo: "texto" },
+            { id: "cargo_trabajo", nombre: "Cargo Trabajo", variable: "cargo_trabajo", color: "#FFE082", tipo: "texto" },
+            { id: "tipo_contrato", nombre: "Tipo Contrato", variable: "tipo_contrato", color: "#FFE082", tipo: "texto" },
+            { id: "fecha_ingreso_trabajo", nombre: "Fecha Ingreso", variable: "fecha_ingreso_trabajo", color: "#FFE082", tipo: "fecha" },
+            { id: "afiliacion", nombre: "Afiliación IESS", variable: "afiliacion", color: "#FFE082", tipo: "texto" },
+            { id: "numero_iess", nombre: "Número IESS", variable: "numero_iess", color: "#FFE082", tipo: "texto" },
+            { id: "pension", nombre: "Pensión", variable: "pension", color: "#D1C4E9", tipo: "texto" },
+            { id: "valor_pension", nombre: "Valor Pensión", variable: "valor_pension", color: "#D1C4E9", tipo: "texto" },
+            { id: "fecha_inicio_pension", nombre: "Fecha Inicio Pensión", variable: "fecha_inicio_pension", color: "#D1C4E9", tipo: "fecha" },
+            { id: "fecha_fin_pension", nombre: "Fecha Fin Pensión", variable: "fecha_fin_pension", color: "#D1C4E9", tipo: "fecha" },
+            { id: "valor_adeudado", nombre: "Valor Adeudado", variable: "valor_adeudado", color: "#D1C4E9", tipo: "texto" },
+            { id: "fecha_ultimo_pago", nombre: "Fecha Último Pago", variable: "fecha_ultimo_pago", color: "#D1C4E9", tipo: "fecha" },
+            { id: "pagos_realizados", nombre: "Pagos Realizados", variable: "pagos_realizados", color: "#D1C4E9", tipo: "texto" },
+            { id: "saldo_pendiente", nombre: "Saldo Pendiente", variable: "saldo_pendiente", color: "#D1C4E9", tipo: "texto" },
+            { id: "porcentaje_ofertado", nombre: "Porcentaje Ofertado", variable: "porcentaje_ofertado", color: "#D1C4E9", tipo: "texto" },
+            { id: "valor_ofertado", nombre: "Valor Ofertado", variable: "valor_ofertado", color: "#D1C4E9", tipo: "texto" },
+            { id: "cuota_mensual_propuesta", nombre: "Cuota Mensual Propuesta", variable: "cuota_mensual_propuesta", color: "#D1C4E9", tipo: "texto" },
+            { id: "forma_pago_pension", nombre: "Forma de Pago", variable: "forma_pago_pension", color: "#D1C4E9", tipo: "texto" },
+            { id: "plazo_pago", nombre: "Plazo Pago", variable: "plazo_pago", color: "#D1C4E9", tipo: "texto" },
+            { id: "periodo_liquidacion", nombre: "Período Liquidación", variable: "periodo_liquidacion", color: "#D1C4E9", tipo: "texto" },
+            { id: "valor_ultimo_pago", nombre: "Valor Último Pago", variable: "valor_ultimo_pago", color: "#D1C4E9", tipo: "texto" }
+        ]
+    };
+    return map[bloqueId] || [];
+}
+
+function ecGetCustomBloques() {
+    try {
+        return JSON.parse(localStorage.getItem("ec_custom_blocks") || "[]");
+    } catch { return []; }
+}
+
+function ecSaveCustomBloques(blocks) {
+    localStorage.setItem("ec_custom_blocks", JSON.stringify(blocks));
+}
+
+function ecGetBloque(bloqueId) {
+    const all = ecGetBloques();
+    return all.find(b => b.id === bloqueId) || null;
+}
+
+function abrirModalEditarCampos() {
+    const modal = document.getElementById("modalEditarCampos");
+    if (!modal) return;
+    modal.style.display = "flex";
+    ecView = "blocks";
+    ecBloqueActualId = null;
+    ecEditEntryId = null;
+    ecRender();
+}
+
+function cerrarModalEditarCampos() {
+    const modal = document.getElementById("modalEditarCampos");
+    if (!modal) return;
+    modal.style.display = "none";
+    ecView = "blocks";
+    ecBloqueActualId = null;
+    ecEditEntryId = null;
+}
+
+function ecAtras() {
+    if (ecView === "block" || ecView === "newBlock") {
+        ecView = "blocks";
+        ecBloqueActualId = null;
+    } else if (ecView === "newEntry" || ecView === "editEntry") {
+        ecView = "block";
+        ecEditEntryId = null;
+    }
+    ecRender();
+}
+
+function ecRender() {
+    const body = document.getElementById("ecBody");
+    const title = document.getElementById("ecTitulo");
+    const backBtn = document.getElementById("ecBtnBack");
+    if (!body || !title || !backBtn) return;
+
+    if (ecView === "blocks") {
+        title.textContent = "EDITAR CAMPOS";
+        backBtn.style.display = "none";
+        ecRenderBloquesList(body);
+    } else if (ecView === "block") {
+        const bloque = ecGetBloque(ecBloqueActualId);
+        title.textContent = bloque ? bloque.nombre : "BLOQUE";
+        backBtn.style.display = "inline-block";
+        ecRenderBloqueDetail(body);
+    } else if (ecView === "newBlock") {
+        title.textContent = "NUEVO BLOQUE";
+        backBtn.style.display = "inline-block";
+        ecRenderNewBlockForm(body);
+    } else if (ecView === "newEntry") {
+        title.textContent = "NUEVA ENTRY";
+        backBtn.style.display = "inline-block";
+        ecRenderEntryForm(body, null);
+    } else if (ecView === "editEntry") {
+        title.textContent = "EDITAR ENTRY";
+        backBtn.style.display = "inline-block";
+        ecRenderEntryForm(body, ecEditEntryId);
+    }
+}
+
+function ecRenderBloquesList(container) {
+    const bloques = ecGetBloques();
+    let html = "";
+    bloques.forEach(b => {
+        const count = b.entries ? b.entries.length : 0;
+        const badge = b.tipo === "sistema"
+            ? '<span style="background:#e2e8f0; color:#64748b; font-size:10px; padding:2px 6px; border-radius:3px; margin-left:6px;">sistema</span>'
+            : "";
+        const click = `ecView='block'; ecBloqueActualId='${b.id}'; ecRender();`;
+        html += `<div style="display:flex; align-items:center; padding:10px 12px; border-bottom:1px solid #f1f5f9; cursor:pointer; border-radius:6px; margin-bottom:2px;" 
+                      onmouseenter="this.style.background='#f8fafc'" onmouseleave="this.style.background=''" onclick="${click}">
+            <div style="flex:1;">
+                <div style="font-size:13px; font-weight:600; color:#1e293b;">${b.nombre}${badge}</div>
+                <div style="font-size:11px; color:#94a3b8;">${count} entries</div>
+            </div>
+            <span style="color:#cbd5e1; font-size:14px;">›</span>
+        </div>`;
+    });
+    html += `<div style="text-align:center; padding:12px;">
+        <button onclick="ecView='newBlock'; ecRender();" style="background:#5c6bc0; color:white; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">+ NUEVO BLOQUE</button>
+    </div>`;
+    container.innerHTML = html;
+}
+
+function ecRenderBloqueDetail(container) {
+    const bloque = ecGetBloque(ecBloqueActualId);
+    if (!bloque) { container.innerHTML = "<p style='color:#999;'>Bloque no encontrado.</p>"; return; }
+    let html = "";
+    if (bloque.entries && bloque.entries.length > 0) {
+        bloque.entries.forEach(e => {
+            html += `<div style="display:flex; align-items:center; padding:8px 10px; border-bottom:1px solid #f1f5f9; gap:8px;">
+                <span style="width:10px; height:10px; border-radius:50%; background:${e.color || '#ccc'}; flex-shrink:0;"></span>
+                <div style="flex:1;">
+                    <div style="font-size:12px; font-weight:600; color:#333;">${e.nombre}</div>
+                    <div style="font-size:10px; color:#94a3b8;">${e.id}${e.tipo ? ' · ' + e.tipo : ''}</div>
+                </div>`;
+            if (bloque.tipo !== "sistema") {
+                html += `<button onclick="ecEditEntryId='${e.id}'; ecView='editEntry'; ecRender();" style="background:none; border:none; cursor:pointer; font-size:14px; color:#5c6bc0; padding:2px 4px;">⚙</button>`;
+                html += `<button onclick="ecEliminarEntrada('${bloque.id}','${e.id}');" style="background:none; border:none; cursor:pointer; font-size:14px; color:#ef4444; padding:2px 4px;">🗑</button>`;
+            }
+            html += `</div>`;
+        });
+    } else {
+        html += '<p style="color:#94a3b8; font-size:12px; text-align:center; padding:8px;">Sin entries</p>';
+    }
+    if (bloque.entries && bloque.entries.length < 15) {
+        html += `<div style="text-align:center; padding:10px;">
+            <button onclick="ecView='newEntry'; ecRender();" style="background:#5c6bc0; color:white; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">+ AGREGAR ENTRY</button>
+        </div>`;
+    } else if (bloque.entries && bloque.entries.length >= 15) {
+        html += '<p style="color:#ef4444; font-size:11px; text-align:center; padding:4px;">MÁXIMO 15 ENTRIES POR BLOQUE.</p>';
+    }
+    if (bloque.tipo !== "sistema") {
+        html += `<div style="text-align:center; padding:8px; border-top:1px solid #f1f5f9; margin-top:8px;">
+            <button onclick="ecEliminarBloque('${bloque.id}')" style="background:#fee2e2; color:#dc2626; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">🗑 ELIMINAR BLOQUE</button>
+        </div>`;
+    }
+    container.innerHTML = html;
+}
+
+function ecRenderNewBlockForm(container) {
+    const colors = EC_COLOR_PALETTE;
+    let html = `<div style="padding:4px 0;">
+        <div style="margin-bottom:12px;">
+            <label style="font-size:12px; font-weight:600; color:#475569; display:block; margin-bottom:4px;">Nombre del Bloque</label>
+            <input id="ecNewBlockName" type="text" placeholder="Ej: MI BLOQUE PERSONALIZADO" style="width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; font-size:13px; box-sizing:border-box;">
+        </div>
+        <div style="margin-bottom:12px;">
+            <label style="font-size:12px; font-weight:600; color:#475569; display:block; margin-bottom:4px;">Color del Bloque</label>
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                ${colors.map((c, i) => `<span onclick="document.getElementById('ecNewBlockColor').value='${c}'; document.querySelectorAll('.ec-color-sel').forEach(s=>s.style.outline='none'); this.style.outline='3px solid #333';" class="ec-color-sel" style="width:24px; height:24px; border-radius:50%; background:${c}; cursor:pointer; display:inline-block; ${i === 0 ? 'outline:3px solid #333;' : ''}"></span>`).join("")}
+            </div>
+            <input id="ecNewBlockColor" type="hidden" value="${colors[0]}">
+        </div>
+        <div style="text-align:right; padding-top:8px;">
+            <button onclick="ecCrearBloque();" style="background:#5c6bc0; color:white; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">GUARDAR</button>
+        </div>
+    </div>`;
+    container.innerHTML = html;
+}
+
+function ecCrearBloque() {
+    const nameEl = document.getElementById("ecNewBlockName");
+    const colorEl = document.getElementById("ecNewBlockColor");
+    if (!nameEl || !colorEl) return;
+    const name = nameEl.value.trim();
+    if (!name) { alert("Ingrese un nombre para el bloque."); return; }
+    const id = "custom_" + name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+    const blocks = ecGetCustomBloques();
+    if (blocks.find(b => b.id === id)) { alert("Ya existe un bloque con ese nombre."); return; }
+    blocks.push({ id, nombre: name.toUpperCase(), tipo: "custom", entries: [] });
+    ecSaveCustomBloques(blocks);
+    cerrarModalEditarCampos();
+    rebuildPaginasDinamicas();
+    modo = id;
+    mostrarPagina(modo);
+}
+
+function ecEliminarBloque(bloqueId) {
+    if (!confirm("¿Eliminar este bloque y todas sus entries?")) return;
+    let blocks = ecGetCustomBloques();
+    blocks = blocks.filter(b => b.id !== bloqueId);
+    ecSaveCustomBloques(blocks);
+    cerrarModalEditarCampos();
+    rebuildPaginasDinamicas();
+    if (modo === bloqueId) {
+        modo = PAGINAS[0];
+        mostrarPagina(modo);
+    }
+}
+
+function ecRenderEntryForm(container, existingEntryId) {
+    const bloque = ecGetBloque(ecBloqueActualId);
+    if (!bloque) return;
+    const existing = existingEntryId ? bloque.entries.find(e => e.id === existingEntryId) : null;
+    const colors = EC_COLOR_PALETTE;
+    const tipoOptions = ["texto", "texto_largo", "numero", "fecha"];
+    let html = `<div style="padding:4px 0;">
+        <div style="margin-bottom:12px;">
+            <label style="font-size:12px; font-weight:600; color:#475569; display:block; margin-bottom:4px;">Nombre</label>
+            <input id="ecEntryName" type="text" value="${existing ? existing.nombre : ''}" placeholder="Nombre descriptivo" style="width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; font-size:13px; box-sizing:border-box;">
+        </div>
+        <div style="margin-bottom:12px;">
+            <label style="font-size:12px; font-weight:600; color:#475569; display:block; margin-bottom:4px;">Variable / ID</label>
+            <input id="ecEntryVar" type="text" value="${existing ? existing.id : ''}" placeholder="identificador_unico" style="width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; font-size:13px; box-sizing:border-box;">
+        </div>
+        <div style="margin-bottom:12px;">
+            <label style="font-size:12px; font-weight:600; color:#475569; display:block; margin-bottom:4px;">Color</label>
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                ${colors.map((c, i) => {
+                    const sel = (existing && existing.color === c) || (!existing && i === 0) ? 'outline:3px solid #333;' : '';
+                    return `<span onclick="document.getElementById('ecEntryColor').value='${c}'; document.querySelectorAll('.ec-entry-color-sel').forEach(s=>s.style.outline='none'); this.style.outline='3px solid #333';" class="ec-entry-color-sel" style="width:24px; height:24px; border-radius:50%; background:${c}; cursor:pointer; display:inline-block; ${sel}"></span>`;
+                }).join("")}
+            </div>
+            <input id="ecEntryColor" type="hidden" value="${existing ? existing.color : colors[0]}">
+        </div>
+        <div style="margin-bottom:12px;">
+            <label style="font-size:12px; font-weight:600; color:#475569; display:block; margin-bottom:4px;">Tipo</label>
+            <select id="ecEntryTipo" style="width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; font-size:13px; box-sizing:border-box;">
+                ${tipoOptions.map(t => `<option value="${t}" ${existing && existing.tipo === t ? 'selected' : ''}>${t}</option>`).join("")}
+            </select>
+        </div>
+        <div style="text-align:right; padding-top:8px;">
+            <button onclick="ecGuardarEntrada();" style="background:#5c6bc0; color:white; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">GUARDAR</button>
+            <button onclick="ecView='block'; ecEditEntryId=null; ecRender();" style="background:#e2e8f0; color:#333; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-size:12px; margin-left:6px;">CANCELAR</button>
+        </div>
+    </div>`;
+    container.innerHTML = html;
+}
+
+function ecGuardarEntrada() {
+    const bloque = ecGetBloque(ecBloqueActualId);
+    if (!bloque || bloque.tipo === "sistema") return;
+    const nameEl = document.getElementById("ecEntryName");
+    const varEl = document.getElementById("ecEntryVar");
+    const colorEl = document.getElementById("ecEntryColor");
+    const tipoEl = document.getElementById("ecEntryTipo");
+    if (!nameEl || !varEl || !colorEl || !tipoEl) return;
+    const nombre = nameEl.value.trim();
+    const variable = varEl.value.trim();
+    const color = colorEl.value;
+    const tipo = tipoEl.value;
+    if (!nombre || !variable) { alert("Nombre y Variable son obligatorios."); return; }
+    const blocks = ecGetCustomBloques();
+    const blockIdx = blocks.findIndex(b => b.id === ecBloqueActualId);
+    if (blockIdx === -1) return;
+    if (ecEditEntryId) {
+        const eIdx = blocks[blockIdx].entries.findIndex(e => e.id === ecEditEntryId);
+        if (eIdx !== -1) {
+            blocks[blockIdx].entries[eIdx] = { id: variable, nombre, variable, color, tipo };
+        }
+    } else {
+        if (blocks[blockIdx].entries.length >= 15) { alert("MÁXIMO 15 ENTRIES POR BLOQUE."); return; }
+        if (blocks[blockIdx].entries.find(e => e.id === variable)) { alert("Ya existe una entry con esa variable."); return; }
+        blocks[blockIdx].entries.push({ id: variable, nombre, variable, color, tipo });
+    }
+    ecSaveCustomBloques(blocks);
+    ecEditEntryId = null;
+    ecView = "block";
+    ecRender();
+}
+
+function ecEliminarEntrada(bloqueId, entryId) {
+    if (!confirm("¿Eliminar esta entry?")) return;
+    const blocks = ecGetCustomBloques();
+    const blockIdx = blocks.findIndex(b => b.id === bloqueId);
+    if (blockIdx === -1) return;
+    blocks[blockIdx].entries = blocks[blockIdx].entries.filter(e => e.id !== entryId);
+    ecSaveCustomBloques(blocks);
+    ecRender();
+}
+
+function ecGetAllCustomEntries() {
+    const entries = [];
+    ecGetCustomBloques().forEach(b => {
+        if (b.entries) b.entries.forEach(e => entries.push({ ...e, bloqueId: b.id, bloqueNombre: b.nombre }));
+    });
+    return entries;
+}
+
+function ecOnOpen() {
+    rebuildPaginasDinamicas();
+    document.getElementById("btnEditarCampos").style.display = "inline-block";
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    rebuildPaginasDinamicas();
+    document.getElementById("btnEditarCampos").style.display = "inline-block";
+});

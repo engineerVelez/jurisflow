@@ -555,6 +555,14 @@ def eliminar_documento_base_endpoint(doc_id: str):
         print(f"⚠️ Error eliminando carpeta en Drive (continuando): {e}")
 
     registro["documentos"] = [d for d in documentos if d["id"] != doc_id]
+
+    seed_id = generar_hash("demanda_servidumbre_paso_jurisflow")
+    if doc_id == seed_id:
+        seeds_eliminados = registro.get("seeds_eliminados", [])
+        if doc_id not in seeds_eliminados:
+            seeds_eliminados.append(doc_id)
+            registro["seeds_eliminados"] = seeds_eliminados
+
     guardar_registro_documentos_base(service, registro)
 
     print(f"🗑 DOCUMENTO BASE ELIMINADO: {doc_id}")
@@ -800,6 +808,10 @@ def seed_documento_base():
     registro = leer_registro_documentos_base(service)
 
     seed_id = generar_hash("demanda_servidumbre_paso_jurisflow")
+
+    seeds_eliminados = registro.get("seeds_eliminados", [])
+    if seed_id in seeds_eliminados:
+        return {"ok": True, "mensaje": "Seed eliminado previamente"}
 
     for doc in registro.get("documentos", []):
         if doc["id"] == seed_id:
