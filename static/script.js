@@ -346,6 +346,9 @@ function cargarMemoriaDocs() {
 
 function guardarMemoriaDocs() {
     localStorage.setItem("memoria_docs", JSON.stringify(memoriaDocs));
+    if (configuracionActual && configuracionActual.mapeo && documentoBaseId) {
+        programarGuardadoConfiguracion();
+    }
 }
 
 
@@ -1829,6 +1832,16 @@ function sincronizarTipoConEntry(valor) {
 //   Direcciones: marfil   | Datos personales: rosa   | Juicio: gris
 // ============================================================
 function colorCampo(key) {
+    if (configuracionActual && configuracionActual.blockEntries) {
+        var sysBlocks = configuracionActual.blockEntries;
+        for (var bId in sysBlocks) {
+            var entries = sysBlocks[bId];
+            if (entries) {
+                var _e = entries.find(en => en.id === key || en.variable === key);
+                if (_e && _e.color) return _e.color;
+            }
+        }
+    }
     const _customBlocks = ecGetCustomBloques();
     for (const _b of _customBlocks) {
         const _e = (_b.entries || []).find(en => en.id === key || en.variable === key);
@@ -2363,6 +2376,14 @@ document.addEventListener("click", function(e) {
         });
         configuracionActual.mapeo[key] = [];
         programarGuardadoConfiguracion();
+        if (configuracionActual.mapeo) {
+            var conteosAfter = {};
+            Object.keys(configuracionActual.mapeo).forEach(function(eid) {
+                var marks = configuracionActual.mapeo[eid];
+                if (marks && marks.length > 0) conteosAfter[eid] = marks.length;
+            });
+            marcarEntriesConVariables(configuracionActual.mapeo, conteosAfter);
+        }
     }
 
     guardarEstado();
@@ -2507,6 +2528,31 @@ function mostrarPagina(nombre) {
 function rebuildPaginasDinamicas() {
     document.querySelectorAll(".pagina-custom-dinamica").forEach(el => el.remove());
 
+    var deletedBlockIds = (configuracionActual && configuracionActual.deletedCustomBlocks) || [];
+
+    EC_SYS_BLOCK_IDS.forEach(function(pageId) {
+        var pageDiv = document.getElementById("pagina-" + pageId);
+        if (!pageDiv) return;
+        if (deletedBlockIds.indexOf(pageId) !== -1) {
+            pageDiv.style.display = "none";
+            return;
+        }
+        var entries = getActiveEntries(pageId);
+        var customName = (configuracionActual && configuracionActual.blockNames && configuracionActual.blockNames[pageId]) || null;
+        var nombre = customName || EC_SYS_BLOCK_NAMES[pageId] || pageId.toUpperCase();
+        var inner = "<h4>" + nombre + "</h4>";
+        entries.forEach(function(e) {
+            inner += '<div class="campo">' +
+                '<button class="btn-rojo" data-key="' + e.id + '" onmousedown="event.preventDefault()" style="background:' + (e.color || '#D1C4E9') + '"></button>' +
+                '<input id="' + e.id + '" class="entry-input" placeholder="' + e.nombre + '">' +
+                '</div>';
+        });
+        if (entries.length === 0) {
+            inner += '<p style="color:#94a3b8; font-size:12px; padding:8px 0;">Sin entries. Edite este bloque desde EDITAR CAMPOS.</p>';
+        }
+        pageDiv.innerHTML = inner;
+    });
+
     const customBlocks = ecGetCustomBloques();
     const lastFixed = document.getElementById("pagina-laboral");
     if (!lastFixed) return;
@@ -2532,14 +2578,20 @@ function rebuildPaginasDinamicas() {
         parent.insertBefore(div, lastFixed.nextSibling);
     });
 
-    PAGINAS = [...PAGINAS_FIJAS, ...customBlocks.map(b => b.id)];
+    var orderedPags = configuracionActual && configuracionActual.blockOrder ? configuracionActual.blockOrder : [...PAGINAS_FIJAS];
+    var customIds = customBlocks.map(b => b.id);
+    orderedPags = orderedPags.filter(function(id) {
+        if (deletedBlockIds.indexOf(id) !== -1) return false;
+        return EC_SYS_BLOCK_IDS.indexOf(id) !== -1 || customIds.indexOf(id) !== -1;
+    });
+    PAGINAS = orderedPags.concat(customIds.filter(id => orderedPags.indexOf(id) === -1));
 
     if (!PAGINAS.includes(modo)) {
         modo = PAGINAS[0];
         mostrarPagina(modo);
     }
 
-    document.querySelectorAll(".pagina-custom-dinamica .entry-input").forEach(input => {
+    document.querySelectorAll(".pagina-entries .entry-input").forEach(input => {
         attachEntryInputListeners(input);
     });
 }
@@ -2713,15 +2765,35 @@ async function abrirDocumentoBase(doc) {
         let tieneMapeoGuardado = false;
 
         const configGuardada = data.config;
+        var deletedBlockIds = (configGuardada && configGuardada.deletedCustomBlocks) || [];
+        var savedBlockEntries = {};
+        var savedBlockOrder = null;
+        if (configGuardada && configGuardada.blockEntries) {
+            Object.keys(configGuardada.blockEntries).forEach(function(k) {
+                if (deletedBlockIds.indexOf(k) === -1) {
+                    savedBlockEntries[k] = configGuardada.blockEntries[k];
+                }
+            });
+            console.log("[MEMORIA] BlockEntries restaurados:", Object.keys(savedBlockEntries).length);
+        }
+        if (configGuardada && configGuardada.blockOrder) {
+            savedBlockOrder = configGuardada.blockOrder.filter(function(id) {
+                return deletedBlockIds.indexOf(id) === -1;
+            });
+        }
+        if (configGuardada && configGuardada.customBlocks && configGuardada.customBlocks.length > 0) {
+            var filteredBlocks = configGuardada.customBlocks.filter(function(b) {
+                return deletedBlockIds.indexOf(b.id) === -1;
+            });
+            if (filteredBlocks.length > 0) {
+                ecSaveCustomBloques(filteredBlocks);
+                console.log("[MEMORIA] Bloques personalizados restaurados:", filteredBlocks.length);
+            }
+        }
         if (configGuardada && configGuardada.mapeo && Object.keys(configGuardada.mapeo).length > 0) {
             mapeo = configGuardada.mapeo;
             resaltados = configGuardada.resaltados || {};
             tieneMapeoGuardado = true;
-            if (configGuardada.customBlocks) {
-                ecSaveCustomBloques(configGuardada.customBlocks);
-                rebuildPaginasDinamicas();
-                console.log("[MEMORIA] Bloques personalizados restaurados:", configGuardada.customBlocks.length);
-            }
             console.log("[MEMORIA] Configuración cargada desde Google Drive:", Object.keys(mapeo).length, "entradas");
             console.log("[MEMORIA] Resaltados restaurados:", Object.keys(resaltados).length, "marcadores");
             console.log("[MEMORIA] Restaurando Entries...");
@@ -2734,14 +2806,44 @@ async function abrirDocumentoBase(doc) {
                 const entryId = mapearVariableAEntrada(m.contenido);
                 if (entryId) {
                     if (!mapeo[entryId]) mapeo[entryId] = [];
-                    mapeo[entryId].push(m.original);
-                    resaltados[m.original] = true;
+                    var allOrig = m.allOriginals || [m.original];
+                    allOrig.forEach(function(orig) {
+                        if (mapeo[entryId].indexOf(orig) === -1) {
+                            mapeo[entryId].push(orig);
+                        }
+                    });
+                    allOrig.forEach(function(orig) { resaltados[orig] = true; });
                 }
             });
             console.log("[MEMORIA] Detección dinámica:", Object.keys(mapeo).length, "entradas");
         }
 
-        configuracionActual = { marcadores, mapeo, resaltados, tieneMapeoGuardado };
+        var savedMemoriaDocData = (configGuardada && configGuardada.memoriaDocData) || null;
+        configuracionActual = { marcadores, mapeo, resaltados, tieneMapeoGuardado, deletedCustomBlocks: (configGuardada && configGuardada.deletedCustomBlocks) || [], customBlocks: ecGetCustomBloques(), blockEntries: savedBlockEntries, blockOrder: savedBlockOrder, blockNames: (configGuardada && configGuardada.blockNames) || null };
+
+        if (savedMemoriaDocData && documentoId) {
+            if (!memoriaDocs.documentos[documentoId]) {
+                memoriaDocs.documentos[documentoId] = { campos: {}, resaltados: [] };
+            }
+            if (savedMemoriaDocData.campos) {
+                Object.keys(savedMemoriaDocData.campos).forEach(function(k) {
+                    memoriaDocs.documentos[documentoId].campos[k] = savedMemoriaDocData.campos[k];
+                });
+            }
+            guardarMemoriaDocs();
+            console.log("[MEMORIA] Valores de campos restaurados desde Drive:", Object.keys(savedMemoriaDocData.campos || {}).length, "campos");
+        }
+
+        resaltarMarcadoresBase(mapeo, resaltados);
+        rebuildPaginasDinamicas();
+
+        var conteosEntradas = {};
+        marcadores.forEach(function(m) {
+            var entryId = mapearVariableAEntrada(m.contenido);
+            if (entryId) {
+                conteosEntradas[entryId] = (conteosEntradas[entryId] || 0) + (m.count || 1);
+            }
+        });
 
         Object.keys(mapeo).forEach(entryId => {
             const input = document.getElementById(entryId);
@@ -2752,9 +2854,18 @@ async function abrirDocumentoBase(doc) {
             input.value = marcador.replace(/^\[|\]$/g, '');
         });
 
-        resaltarMarcadoresBase(mapeo, resaltados);
-        marcarEntriesConVariables(mapeo);
-        rebuildPaginasDinamicas();
+        if (savedMemoriaDocData && savedMemoriaDocData.campos && documentoId) {
+            var camposGuardados = memoriaDocs.documentos[documentoId].campos || {};
+            Object.keys(camposGuardados).forEach(function(entryId) {
+                var input = document.getElementById(entryId);
+                if (input && camposGuardados[entryId] !== undefined && camposGuardados[entryId] !== null) {
+                    input.value = camposGuardados[entryId];
+                }
+            });
+            console.log("[MEMORIA] Valores de campos aplicados desde memoriaDocs");
+        }
+
+        marcarEntriesConVariables(mapeo, conteosEntradas);
 
         if (!tieneMapeoGuardado && Object.keys(mapeo).length > 0) {
             console.log("[MEMORIA] Guardando configuración inicial automáticamente...");
@@ -2786,16 +2897,25 @@ async function guardarConfiguracionEnDrive() {
 
     const mapeo = configuracionActual.mapeo;
     const resaltados = configuracionActual.resaltados || {};
+    const customBlocks = ecGetCustomBloques();
+    const deletedCustomBlocks = configuracionActual.deletedCustomBlocks || [];
+    const blockEntries = configuracionActual.blockEntries || {};
+    const blockOrder = configuracionActual.blockOrder || null;
+    const blockNames = configuracionActual.blockNames || null;
+    var memoriaDocData = null;
+    if (documentoId && memoriaDocs.documentos && memoriaDocs.documentos[documentoId]) {
+        memoriaDocData = memoriaDocs.documentos[documentoId];
+    }
 
     try {
         console.log("[MEMORIA] Cambio detectado");
         console.log("[MEMORIA] Documento ID:", documentoBaseId);
-        console.log("[MEMORIA] Preparando configuración:", Object.keys(mapeo).length, "entradas,", Object.keys(resaltados).length, "resaltados");
+        console.log("[MEMORIA] Preparando configuración:", Object.keys(mapeo).length, "entradas,", Object.keys(resaltados).length, "resaltados,", Object.keys(blockEntries).length, "blockEntries");
         console.log("[MEMORIA] Enviando configuración al backend...");
         const resp = await fetch(`/api/documentos-base/${documentoBaseId}/guardar-configuracion`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ mapeo, resaltados, customBlocks: ecGetCustomBloques() })
+            body: JSON.stringify({ mapeo, resaltados, customBlocks, deletedCustomBlocks, blockEntries, blockOrder, blockNames, memoriaDocData })
         });
 
         if (!resp.ok) {
@@ -2827,22 +2947,262 @@ function textoPlanoToHtml(texto) {
         .join("");
 }
 
+function normalizarVariableCanonica(str) {
+    return str.toUpperCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^A-Z0-9]/g, " ")
+        .trim()
+        .split(/\s+/)
+        .map(function(part) {
+            if (/^\d+$/.test(part)) {
+                return part.replace(/^0+/, "") || "0";
+            }
+            return part;
+        })
+        .join("");
+}
+
 function detectarMarcadores(texto) {
     const regex = /\[([^\]]+)\]/g;
     let match;
-    const vistas = new Set();
-    const resultado = [];
+    const porCanonica = new Map();
     while ((match = regex.exec(texto)) !== null) {
         const contenido = match[1].trim();
         if (!contenido) continue;
-        if (vistas.has(match[0])) continue;
-        vistas.add(match[0]);
-        resultado.push({ original: match[0], contenido });
+        const canonical = normalizarVariableCanonica(contenido);
+        if (!porCanonica.has(canonical)) {
+            porCanonica.set(canonical, { originals: [], total: 0, contenido: contenido, canonical: canonical });
+        }
+        const group = porCanonica.get(canonical);
+        if (!group.originals.includes(match[0])) {
+            group.originals.push(match[0]);
+        }
+        group.total++;
     }
+    const resultado = [];
+    porCanonica.forEach(function(group) {
+        resultado.push({
+            original: group.originals[0],
+            contenido: group.contenido,
+            count: group.total,
+            allOriginals: group.originals,
+            canonical: group.canonical
+        });
+    });
     return resultado;
 }
 
+var _EXACT_VAR_MAP_CACHE = null;
+function _buildExactVarMap() {
+    if (_EXACT_VAR_MAP_CACHE) return _EXACT_VAR_MAP_CACHE;
+    var m = {};
+    function add(k, v) { m[k] = v; }
+    add("numero_juicio","numero_juicio"); add("tipo_juicio","tipo_juicio"); add("unidad_judicial","unidad_judicial_top");
+    add("juzgador","juzgador"); add("numero_expediente","numero_expediente"); add("sala_juzgado","sala_juzgado");
+    add("ciudad_juicio","ciudad_juicio"); add("canton_juicio","canton_juicio"); add("provincia_juicio","provincia_juicio");
+    add("fecha_escrito","fecha_escrito"); add("fecha_presentacion","fecha_presentacion"); add("tipo_accion","tipo_accion");
+    add("materia_proceso","materia_proceso"); add("submateria_proceso","submateria_proceso"); add("procedimiento_tipo","procedimiento_tipo");
+    add("cuantia","cuantia"); add("cuantia_total","cuantia_total");
+    var _a1 = {
+        NOMBRE:"actor", CEDULA:"cedula", EDAD:"age", ESTADO_CIVIL:"civil", PROFESION:"profesion",
+        NACIONALIDAD:"ciudadania", CIUDADANIA:"ciudadania", CORREO:"email", EMAIL:"email",
+        TELEFONO:"telefono_actor", CELULAR:"telefono_actor", CONTACTO:"telefono_actor",
+        PARROQUIA:"parroquia_actor", BARRIO:"barrio_actor", CALLE_PRINCIPAL:"calle_principal_actor",
+        CALLE_SECUNDARIA:"calle_secundaria_actor", NUMERO_CASA:"numero_casa_actor",
+        CODIGO_POSTAL:"codigo_postal_actor", DIRECCION:"direccion_domiciliaria_actor",
+        DOMICILIO:"direccion_domiciliaria_actor", CASILLERO:"casillero_judicial_actor"
+    };
+    for (var f in _a1) {
+        if (!_a1.hasOwnProperty(f)) continue;
+        add(f + "_ACTOR_1", _a1[f]); add(f + "_DEL_ACTOR", _a1[f]); add(f + "_ACTOR", _a1[f]);
+        add(f + "_DEMANDANTE", _a1[f]); add(f + "_DEL_DEMANDANTE", _a1[f]);
+        add(f + "_RECLAMANTE", _a1[f]); add(f + "_SOLICITANTE", _a1[f]);
+    }
+    var _a2 = {
+        NOMBRE:"actor_2", CEDULA:"cedula_actor_2", EDAD:"age_actor_2", ESTADO_CIVIL:"civil_actor_2",
+        PROFESION:"profesion_actor_2", NACIONALIDAD:"ciudadania_actor_2", CIUDADANIA:"ciudadania_actor_2",
+        CORREO:"email_actor_2", EMAIL:"email_actor_2", TELEFONO:"telefono_actor_2", CELULAR:"telefono_actor_2",
+        PARROQUIA:"parroquia_actor_2", BARRIO:"barrio_actor_2", CALLE_PRINCIPAL:"calle_principal_actor_2",
+        CALLE_SECUNDARIA:"calle_secundaria_actor_2", NUMERO_CASA:"numero_casa_actor_2",
+        CODIGO_POSTAL:"codigo_postal_actor_2", DIRECCION:"direccion_domiciliaria_actor_2",
+        DOMICILIO:"direccion_domiciliaria_actor_2", CASILLERO:"casillero_judicial_actor_2"
+    };
+    for (var f in _a2) {
+        if (!_a2.hasOwnProperty(f)) continue;
+        add(f + "_ACTOR_2", _a2[f]); add(f + "_DEL_ACTOR_2", _a2[f]); add(f + "_SEGUNDO_ACTOR", _a2[f]);
+        add(f + "_DEL_SEGUNDO_ACTOR", _a2[f]);
+    }
+    var _d = {
+        NOMBRE:"nombre_demandado", CEDULA:"cedula_demandado", EDAD:"edad_demandado",
+        ESTADO_CIVIL:"civil_demandado", PROFESION:"profesion_demandado",
+        NACIONALIDAD:"ciudadania_demandado", CIUDADANIA:"ciudadania_demandado",
+        CORREO:"email_demandado", EMAIL:"email_demandado", TELEFONO:"telefono_demandado",
+        CELULAR:"telefono_demandado", PARROQUIA:"parroquia_demandado", BARRIO:"barrio_demandado",
+        CALLE_PRINCIPAL:"calle_principal_demandado", CALLE_SECUNDARIA:"calle_secundaria_demandado",
+        NUMERO_CASA:"numero_casa_demandado", CODIGO_POSTAL:"codigo_postal_demandado",
+        DIRECCION:"direccion_citacion_demandado", DOMICILIO:"direccion_citacion_demandado",
+        CASILLERO:"casillero_judicial_demandado"
+    };
+    for (var f in _d) {
+        if (!_d.hasOwnProperty(f)) continue;
+        add(f + "_DEMANDADO", _d[f]); add(f + "_DEL_DEMANDADO", _d[f]);
+        add(f + "_REO", _d[f]); add(f + "_DEL_REO", _d[f]);
+    }
+    var _tg = {
+        NOMBRE:"nombre_testigo", CEDULA:"cedula_testigo", CIUDAD:"ciudad_testigo",
+        PROVINCIA:"provincia_testigo", CANTON:"canton_testigo", PARROQUIA:"parroquia_testigo",
+        BARRIO:"barrio_testigo", DIRECCION:"direccion_testigo", DOMICILIO:"direccion_testigo",
+        CORREO:"email_testigo", EMAIL:"email_testigo", TELEFONO:"telefono_testigo",
+        CELULAR:"telefono_testigo", EDAD:"edad_testigo", PROFESION:"profesion_testigo",
+        NACIONALIDAD:"nacionalidad_testigo", CIUDADANIA:"nacionalidad_testigo",
+        DECLARACION:"objeto_testigo", OBJETO:"objeto_testigo"
+    };
+    for (var t = 1; t <= 8; t++) {
+        for (var f in _tg) {
+            if (!_tg.hasOwnProperty(f)) continue;
+            add(f + "_TESTIGO_" + t, _tg[f] + t);
+            add(f + "_DEL_TESTIGO_" + t, _tg[f] + t);
+        }
+    }
+    var _ab = {
+        NOMBRE:"nombre_abogado", MATRICULA:"matricula_abogado", CEDULA:"cedula_abogado",
+        CORREO:"correo_abogado", TELEFONO:"telefono_abogado", DIRECCION:"direccion_abogado",
+        CASILLERO:"casillero_judicial_abogado"
+    };
+    for (var f in _ab) {
+        if (!_ab.hasOwnProperty(f)) continue;
+        add(f + "_ABOGADO", _ab[f]); add(f + "_DEL_ABOGADO", _ab[f]);
+        add(f + "_APODERADO", _ab[f]); add(f + "_DEFENSOR", _ab[f]);
+    }
+    add("tipo_patrocinio","tipo_patrocinio");
+    for (var p = 1; p <= 2; p++) {
+        add("DOCUMENTO_PRUEBA_" + p, "documento_prueba_" + p);
+        add("DESCRIPCION_PRUEBA_" + p, "descripcion_prueba_" + p);
+        add("FINALIDAD_PRUEBA_" + p, "finalidad_prueba_" + p);
+        add("FECHA_DOCUMENTO_PRUEBA_" + p, "fecha_documento_prueba_" + p);
+        add("EMISOR_DOCUMENTO_PRUEBA_" + p, "emisor_documento_prueba_" + p);
+        add("AUTENTICIDAD_PRUEBA_" + p, "autenticidad_prueba_" + p);
+        add("ADMITE_PRUEBA_" + p, "admite_prueba_" + p);
+        add("NIEGA_PRUEBA_" + p, "niega_prueba_" + p);
+        add("OBJETA_PRUEBA_" + p, "objeta_prueba_" + p);
+    }
+    for (var pe = 1; pe <= 3; pe++) {
+        add("NOMBRE_PERITO_" + pe, "nombre_perito_" + pe);
+        add("CEDULA_PERITO_" + pe, "cedula_perito_" + pe);
+        add("PROFESION_PERITO_" + pe, "profesion_perito_" + pe);
+        add("ESPECIALIDAD_PERITO_" + pe, "especialidad_perito_" + pe);
+        add("OBJETO_PERICIA_" + pe, "objeto_pericia_" + pe);
+        add("PUNTOS_PERICIA_" + pe, "puntos_pericia_" + pe);
+        add("CONCLUSION_PERICIA_" + pe, "conclusion_pericia_" + pe);
+        add("REGISTRO_PERITO_" + pe, "registro_perito_" + pe);
+        add("CORREO_PERITO_" + pe, "correo_perito_" + pe);
+        add("TELEFONO_PERITO_" + pe, "telefono_perito_" + pe);
+    }
+    add("LUGAR_INSPECCION","lugar_inspeccion"); add("OBJETO_INSPECCION","objeto_inspeccion");
+    add("FINALIDAD_INSPECCION","finalidad_inspeccion"); add("FECHA_INSPECCION","fecha_inspeccion");
+    add("DIRECCION_INSPECCION","direccion_inspeccion"); add("HECHOS_A_VERIFICAR_INSPECCION","hechos_a_verificar_inspeccion");
+    for (var h = 1; h <= 10; h++) { add("HECHO_" + h, "hecho_" + h); add("HECHO_DEFENSA_" + h, "hecho_defensa_" + h); }
+    for (var pt = 1; pt <= 10; pt++) { add("PRETENSION_" + pt, "pretension_" + pt); }
+    add("PRETENSION_PRINCIPAL","pretension_principal"); add("PRETENSION_SUBSIDIARIA","pretension_subsidiaria");
+    add("PRETENSION_ALTERNATIVA","pretension_alternativa"); add("PETICION_FINAL","peticion_final");
+    for (var fd = 1; fd <= 5; fd++) { add("FUNDAMENTO_DERECHO_" + fd, "fundamento_derecho_" + fd); }
+    for (var n = 1; n <= 2; n++) {
+        add("NORMA_" + n, "norma_" + n); add("ARTICULO_NORMA_" + n, "articulo_norma_" + n);
+        add("DESCRIPCION_NORMA_" + n, "descripcion_norma_" + n);
+    }
+    add("CORREO_NOTIFICACION","correo_notificacion");
+    add("CASILLERO_ELECTRONICO_ACTOR","casillero_electronico_actor");
+    add("CASILLERO_ELECTRONICO_ACTOR_2","casillero_electronico_actor_2");
+    add("CASILLERO_ELECTRONICO_DEMANDADO","casillero_electronico_demandado");
+    for (var pr = 1; pr <= 10; pr++) {
+        add("PRONUNCIAMIENTO_PRETENSION_" + pr, "pronunciamiento_pretension_" + pr);
+        add("PRONUNCIAMIENTO_HECHO_" + pr, "pronunciamiento_hecho_" + pr);
+        add("ADMITE_PRETENSION_" + pr, "admite_pretension_" + pr);
+        add("NIEGA_PRETENSION_" + pr, "niega_pretension_" + pr);
+        add("ACEPTA_PRETENSION_" + pr, "acepta_pretension_" + pr);
+        add("SE_OPONE_PRETENSION_" + pr, "se_opone_pretension_" + pr);
+        add("ADMITE_HECHO_" + pr, "admite_hecho_" + pr);
+        add("NIEGA_HECHO_" + pr, "niega_hecho_" + pr);
+        add("NO_LE_CONSTA_HECHO_" + pr, "no_le_consta_hecho_" + pr);
+    }
+    for (var ex = 1; ex <= 5; ex++) { add("EXCEPCION_" + ex, "excepcion_" + ex); }
+    add("EXCEPCION_PREVIA_1","excepcion_previa_1"); add("EXCEPCION_PRESCRIPCION","excepcion_prescripcion");
+    add("EXCEPCION_CADUCIDAD","excepcion_caducidad"); add("EXCEPCION_COSA_JUZGADA","excepcion_cosa_juzgada");
+    add("EXCEPCION_LITISPENDENCIA","excepcion_litispendencia"); add("EXCEPCION_TRANSACCION","excepcion_transaccion");
+    add("EXCEPCION_CONVENIO_ARBITRAL","excepcion_convenio_arbitral");
+    add("EXCEPCION_INADECUACION_PROCEDIMIENTO","excepcion_inadecuacion_procedimiento");
+    add("EXCEPCION_INDEBIDA_ACUMULACION","excepcion_indebida_acumulacion");
+    add("EXCEPCION_FALTA_LEGITIMACION","excepcion_falta_legitimacion");
+    add("SALARIO","salario"); add("INGRESOS_MENSUALES","ingresos_mensuales");
+    add("INGRESOS_EXTRAORDINARIOS","ingresos_extraordinarios"); add("INGRESOS_ANUALES","ingresos_anuales");
+    add("EGRESOS_MENSUALES","egresos_mensuales"); add("GASTOS_ALIMENTACION","gastos_alimentacion");
+    add("GASTOS_VIVIENDA","gastos_vivienda"); add("GASTOS_EDUCACION","gastos_educacion");
+    add("GASTOS_SALUD","gastos_salud"); add("GASTOS_TRANSPORTE","gastos_transporte");
+    add("CARGA_FAMILIAR","carga_familiar"); add("PERSONAS_A_CARGO","personas_a_cargo");
+    add("NUMERO_HIJOS","numero_hijos"); add("EMPRESA_TRABAJO","empresa_trabajo");
+    add("CARGO_TRABAJO","cargo_trabajo"); add("TIPO_CONTRATO","tipo_contrato");
+    add("FECHA_INGRESO_TRABAJO","fecha_ingreso_trabajo"); add("AFILIACION_IESS","afiliacion_iess");
+    add("NUMERO_IESS","numero_iess");
+    add("PENSION_ACTUAL","pension_actual"); add("PENSION_SOLICITADA","pension_solicitada");
+    add("PENSION_PROPUESTA","pension_propuesta"); add("PENSION_PROVISIONAL","pension_provisional");
+    add("PENSION_DEFINITIVA","pension_definitiva"); add("VALOR_PENSION","valor_pension");
+    add("VALOR_ADEUDADO","valor_adeudado"); add("FECHA_INICIO_PENSION","fecha_inicio_pension");
+    add("FECHA_ULTIMO_PAGO","fecha_ultimo_pago");
+    add("DANOS_PERJUICIOS","danos_perjuicios"); add("INTERESES","intereses"); add("VALOR_PRINCIPAL","valor_principal");
+    for (var b = 1; b <= 5; b++) {
+        add("NOMBRE_BENEFICIARIO_" + b, "nombre_beneficiario_" + b);
+        add("CEDULA_BENEFICIARIO_" + b, "cedula_beneficiario_" + b);
+    }
+    add("RECONOCE_PATERNIDAD","reconoce_paternidad"); add("NIEGA_PATERNIDAD","niega_paternidad");
+    add("SOLICITA_PRUEBA_ADN","solicita_prueba_adn"); add("NOMBRE_MADRE","nombre_madre");
+    add("CEDULA_MADRE","cedula_madre"); add("NOMBRE_PADRE","nombre_padre");
+    add("CEDULA_PADRE","cedula_padre"); add("NOMBRE_MENOR","nombre_menor"); add("CEDULA_MENOR","cedula_menor");
+    add("FISCAL_ASIGNADO","fiscal_asignado"); add("UNIDAD_FISCALIA","unidad_fiscalia");
+    add("FISCALIA","fiscalia"); add("NUMERO_NOTICIA","numero_noticia");
+    add("NUMERO_INVESTIGACION","numero_investigacion"); add("TIPO_DELITO","tipo_delito");
+    add("DELITO","delito"); add("FECHA_DELITO","fecha_delito"); add("HORA_DELITO","hora_delito");
+    add("LUGAR_DELITO","lugar_delito"); add("CIUDAD_DELITO","ciudad_delito");
+    add("PROVINCIA_DELITO","provincia_delito"); add("NOMBRE_VICTIMA","nombre_victima");
+    add("CEDULA_VICTIMA","cedula_victima");     add("NOMBRE_INVESTIGADO","nombre_investigado");
+    add("NOMBRE_PROCURADOR_GENERAL","nombre_procurador_general");
+    add("DIRECCION_PROCURADOR_GENERAL","direccion_procurador_general");
+    add("CIUDAD_PROCURADOR_GENERAL","ciudad_procurador_general");
+    add("PROVINCIA_PROCURADOR_GENERAL","provincia_procurador_general");
+    add("CANTON_PROCURADOR_GENERAL","canton_procurador_general");
+    add("CODIGO_POSTAL_PROCURADOR_GENERAL","codigo_postal_procurador_general");
+    add("CASILLERO_ELECTRONICO_PROCURADOR_GENERAL","casillero_electronico_procurador_general");
+    _EXACT_VAR_MAP_CACHE = m;
+    return m;
+}
+
+var _CANONICAL_MAP_CACHE = null;
+function _buildCanonicalMap() {
+    if (_CANONICAL_MAP_CACHE) return _CANONICAL_MAP_CACHE;
+    var exactMap = _buildExactVarMap();
+    var canonicalMap = {};
+    for (var key in exactMap) {
+        if (!exactMap.hasOwnProperty(key)) continue;
+        var canonical = normalizarVariableCanonica(key);
+        if (!canonicalMap[canonical]) {
+            canonicalMap[canonical] = exactMap[key];
+        }
+    }
+    _CANONICAL_MAP_CACHE = canonicalMap;
+    return canonicalMap;
+}
+
 function mapearVariableAEntrada(contenido) {
+    var norm = contenido.toUpperCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .replace(/[\s\u2013\u2014\u2015]+/g, "_").replace(/[^A-Z0-9_]/g, "")
+        .replace(/^_+|_+$/g, "");
+    var exactMap = _buildExactVarMap();
+    if (exactMap[norm]) return exactMap[norm];
+
+    var canonical = normalizarVariableCanonica(contenido);
+    var canonicalMap = _buildCanonicalMap();
+    if (canonicalMap[canonical]) return canonicalMap[canonical];
+
     const c = contenido.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
     if (/nombre.*(actor\s*2|segundo\s*actor)/.test(c)) return "actor_2";
@@ -3296,25 +3656,140 @@ function resaltarMarcadoresBase(mapeo, resaltados) {
         const color = colorCampo(entryId);
         const escaped = marcador.replace(/[-\/\\^$*+?.()|[\]{}%]/g, '\\$&');
         const regex = new RegExp(escaped, "g");
-        const replacement = `<span data-key="${entryId}" style="background:${color}; padding:1px 2px; border-radius:2px; cursor:pointer;" title="${entryId}">${marcador}</span>`;
-        html = html.replace(regex, replacement);
+        let counter = 0;
+        html = html.replace(regex, function() {
+            counter++;
+            return '<span data-key="' + entryId + '" data-instance-id="' + entryId + '_base_' + counter + '" style="background:' + color + '; padding:1px 2px; border-radius:2px; cursor:pointer;" title="' + entryId + '">' + marcador + '</span>';
+        });
     });
 
     editor.innerHTML = html;
 }
 
-function marcarEntriesConVariables(mapeo) {
+function marcarEntriesConVariables(mapeo, conteos) {
     document.querySelectorAll(".entry-input").forEach(input => {
         const existing = input.parentNode.querySelector(".var-badge");
         if (existing) existing.remove();
         if (mapeo[input.id]) {
+            const total = (conteos && conteos[input.id]) ? conteos[input.id] : mapeo[input.id].length;
+            if (total === 0) {
+                const badge = document.createElement("span");
+                badge.className = "var-badge";
+                badge.style.cssText = "display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;border-radius:9px;background:#e2e8f0;color:#64748b;font-size:10px;font-weight:700;margin-left:4px;vertical-align:middle;border:1px solid rgba(0,0,0,.15);padding:0 3px;cursor:default;line-height:1;";
+                badge.textContent = "0/0";
+                badge.title = "Sin coincidencias en el documento";
+                input.parentNode.appendChild(badge);
+                return;
+            }
+            if (!matchNavigationState[input.id]) {
+                matchNavigationState[input.id] = { currentIndex: 0 };
+            }
+            var nav = matchNavigationState[input.id];
+            if (nav.currentIndex >= total) nav.currentIndex = 0;
+            if (nav.currentIndex < 0) nav.currentIndex = 0;
+            var displayIndex = nav.currentIndex + 1;
             const badge = document.createElement("span");
-            badge.className = "var-badge";
-            badge.style.cssText = `display:inline-block;width:8px;height:8px;border-radius:50%;background:${colorCampo(input.id)};margin-left:4px;vertical-align:middle;border:1px solid #666;`;
-            badge.title = `${mapeo[input.id].length} variable(s) en el documento`;
+            badge.className = "var-badge match-nav-badge";
+            badge.setAttribute("data-entry-key", input.id);
+            badge.style.cssText = "display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:18px;border-radius:9px;background:" + colorCampo(input.id) + ";color:#000;font-size:10px;font-weight:700;margin-left:4px;vertical-align:middle;border:1px solid rgba(0,0,0,.3);padding:0 4px;cursor:pointer;line-height:1;transition:transform 0.15s;";
+            badge.textContent = displayIndex + "/" + total;
+            badge.title = displayIndex + " de " + total + " coincidencias — clic para navegar";
+            badge.setAttribute("tabindex", "0");
+            badge.setAttribute("role", "button");
+            badge.setAttribute("aria-label", input.id + " " + displayIndex + " de " + total);
+            badge.onclick = function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                navegarCoincidencia(input.id);
+            };
+            badge.onmouseenter = function() { badge.style.transform = "scale(1.15)"; };
+            badge.onmouseleave = function() { badge.style.transform = "scale(1)"; };
             input.parentNode.appendChild(badge);
         }
     });
+}
+
+function actualizarBadgeNavegacion(entryKey) {
+    var badge = document.querySelector('.match-nav-badge[data-entry-key="' + entryKey + '"]');
+    if (!badge) return;
+    var spans = document.querySelectorAll('#editor span[data-key="' + entryKey + '"]');
+    var total = spans.length;
+    if (total === 0) {
+        badge.textContent = "0/0";
+        badge.title = "Sin coincidencias en el documento";
+        badge.style.cursor = "default";
+        badge.style.background = "#e2e8f0";
+        badge.style.color = "#64748b";
+        badge.onclick = null;
+        return;
+    }
+    if (!matchNavigationState[entryKey]) matchNavigationState[entryKey] = { currentIndex: 0 };
+    var nav = matchNavigationState[entryKey];
+    if (nav.currentIndex >= total) nav.currentIndex = 0;
+    if (nav.currentIndex < 0) nav.currentIndex = 0;
+    badge.textContent = (nav.currentIndex + 1) + "/" + total;
+    badge.title = (nav.currentIndex + 1) + " de " + total + " coincidencias — clic para navegar";
+    badge.style.background = colorCampo(entryKey);
+    badge.style.color = "#000";
+    badge.style.cursor = "pointer";
+}
+
+function navegarCoincidencia(entryKey) {
+    var editor = document.getElementById("editor");
+    if (!editor) return;
+    var spans = editor.querySelectorAll('span[data-key="' + entryKey + '"]');
+    if (spans.length === 0) return;
+    if (!matchNavigationState[entryKey]) matchNavigationState[entryKey] = { currentIndex: 0 };
+    var nav = matchNavigationState[entryKey];
+    document.querySelectorAll('.match-highlight-current').forEach(function(el) {
+        el.style.outline = "";
+        el.style.outlineOffset = "";
+        el.style.boxShadow = "";
+        el.classList.remove("match-highlight-current");
+    });
+    nav.currentIndex = (nav.currentIndex + 1) % spans.length;
+    var currentSpan = spans[nav.currentIndex];
+    currentSpan.scrollIntoView({ behavior: "smooth", block: "center" });
+    currentSpan.style.outline = "3px solid #FF6B6B";
+    currentSpan.style.outlineOffset = "2px";
+    currentSpan.style.boxShadow = "0 0 8px rgba(255,107,107,0.6)";
+    currentSpan.classList.add("match-highlight-current");
+    setTimeout(function() {
+        currentSpan.style.outline = "";
+        currentSpan.style.outlineOffset = "";
+        currentSpan.style.boxShadow = "";
+        currentSpan.classList.remove("match-highlight-current");
+    }, 2000);
+    actualizarBadgeNavegacion(entryKey);
+}
+
+function navegarCoincidenciaAnterior(entryKey) {
+    var editor = document.getElementById("editor");
+    if (!editor) return;
+    var spans = editor.querySelectorAll('span[data-key="' + entryKey + '"]');
+    if (spans.length === 0) return;
+    if (!matchNavigationState[entryKey]) matchNavigationState[entryKey] = { currentIndex: 0 };
+    var nav = matchNavigationState[entryKey];
+    document.querySelectorAll('.match-highlight-current').forEach(function(el) {
+        el.style.outline = "";
+        el.style.outlineOffset = "";
+        el.style.boxShadow = "";
+        el.classList.remove("match-highlight-current");
+    });
+    nav.currentIndex = (nav.currentIndex - 1 + spans.length) % spans.length;
+    var currentSpan = spans[nav.currentIndex];
+    currentSpan.scrollIntoView({ behavior: "smooth", block: "center" });
+    currentSpan.style.outline = "3px solid #FF6B6B";
+    currentSpan.style.outlineOffset = "2px";
+    currentSpan.style.boxShadow = "0 0 8px rgba(255,107,107,0.6)";
+    currentSpan.classList.add("match-highlight-current");
+    setTimeout(function() {
+        currentSpan.style.outline = "";
+        currentSpan.style.outlineOffset = "";
+        currentSpan.style.boxShadow = "";
+        currentSpan.classList.remove("match-highlight-current");
+    }, 2000);
+    actualizarBadgeNavegacion(entryKey);
 }
 
 function limpiarBadgeEntries() {
@@ -3690,7 +4165,7 @@ function inicializarFiltroCategorias() {
 let ecView = "blocks";
 let ecBloqueActualId = null;
 let ecEditEntryId = null;
-
+var matchNavigationState = {};
 const EC_SYS_BLOCK_IDS = ["actor1", "actor2", "demandado", "testigos", "hechos", "pruebas", "pretensiones", "fundamentos", "otros", "proceso", "notificaciones", "excepciones", "pronunciamiento", "laboral"];
 const EC_SYS_BLOCK_NAMES = {
     actor1: "ACTOR 1", actor2: "ACTOR 2", demandado: "DEMANDADO",
@@ -3707,12 +4182,47 @@ const EC_COLOR_PALETTE = [
     "#EF9A9A", "#B39DDB", "#80CBC4", "#FFE082", "#D1C4E9"
 ];
 
+function isSystemBlock(bloqueId) {
+    return EC_SYS_BLOCK_IDS.indexOf(bloqueId) !== -1;
+}
+
+function getActiveEntries(bloqueId) {
+    if (configuracionActual && configuracionActual.blockEntries && configuracionActual.blockEntries[bloqueId]) {
+        return configuracionActual.blockEntries[bloqueId];
+    }
+    if (isSystemBlock(bloqueId)) {
+        return ecGetEntriesForSysBlock(bloqueId);
+    }
+    var custom = ecGetCustomBloques();
+    var block = custom.find(function(b) { return b.id === bloqueId; });
+    return block ? (block.entries || []) : [];
+}
+
+function saveBlockEntries(bloqueId, entries) {
+    if (!configuracionActual) configuracionActual = {};
+    if (!configuracionActual.blockEntries) configuracionActual.blockEntries = {};
+    configuracionActual.blockEntries[bloqueId] = entries;
+    if (isSystemBlock(bloqueId)) {
+        programarGuardadoConfiguracion();
+    } else {
+        var blocks = ecGetCustomBloques();
+        var blockIdx = blocks.findIndex(function(b) { return b.id === bloqueId; });
+        if (blockIdx !== -1) {
+            blocks[blockIdx].entries = entries;
+            ecSaveCustomBloques(blocks);
+        }
+    }
+}
+
 function ecGetBloques() {
     const custom = ecGetCustomBloques();
-    return EC_SYS_BLOCK_IDS.map(id => ({
-        id, nombre: EC_SYS_BLOCK_NAMES[id] || id.toUpperCase(), tipo: "sistema",
-        entries: ecGetEntriesForSysBlock(id)
-    })).concat(custom);
+    return EC_SYS_BLOCK_IDS.map(id => {
+        var customName = (configuracionActual && configuracionActual.blockNames && configuracionActual.blockNames[id]) || null;
+        return {
+            id, nombre: customName || EC_SYS_BLOCK_NAMES[id] || id.toUpperCase(), tipo: "sistema",
+            entries: getActiveEntries(id)
+        };
+    }).concat(custom);
 }
 
 function ecGetEntriesForSysBlock(bloqueId) {
@@ -3923,13 +4433,30 @@ function ecGetEntriesForSysBlock(bloqueId) {
 }
 
 function ecGetCustomBloques() {
+    if (configuracionActual && configuracionActual.customBlocks && configuracionActual.customBlocks.length > 0) {
+        return configuracionActual.customBlocks;
+    }
     try {
-        return JSON.parse(localStorage.getItem("ec_custom_blocks") || "[]");
-    } catch { return []; }
+        var stored = JSON.parse(localStorage.getItem("ec_custom_blocks") || "[]");
+        if (stored.length > 0 && configuracionActual) {
+            configuracionActual.customBlocks = stored;
+        }
+        return stored;
+    } catch(e) { return []; }
 }
 
 function ecSaveCustomBloques(blocks) {
     localStorage.setItem("ec_custom_blocks", JSON.stringify(blocks));
+    if (configuracionActual) {
+        configuracionActual.customBlocks = blocks;
+    }
+    ecNotifyCustomBlocksChanged(blocks);
+}
+
+function ecNotifyCustomBlocksChanged(blocks) {
+    if (configuracionActual && configuracionActual.mapeo) {
+        programarGuardadoConfiguracion();
+    }
 }
 
 function ecGetBloque(bloqueId) {
@@ -3957,7 +4484,7 @@ function cerrarModalEditarCampos() {
 }
 
 function ecAtras() {
-    if (ecView === "block" || ecView === "newBlock") {
+    if (ecView === "block" || ecView === "newBlock" || ecView === "editBlock") {
         ecView = "blocks";
         ecBloqueActualId = null;
     } else if (ecView === "newEntry" || ecView === "editEntry") {
@@ -3986,6 +4513,10 @@ function ecRender() {
         title.textContent = "NUEVO BLOQUE";
         backBtn.style.display = "inline-block";
         ecRenderNewBlockForm(body);
+    } else if (ecView === "editBlock") {
+        title.textContent = "EDITAR BLOQUE";
+        backBtn.style.display = "inline-block";
+        ecRenderEditBlockForm(body);
     } else if (ecView === "newEntry") {
         title.textContent = "NUEVA ENTRY";
         backBtn.style.display = "inline-block";
@@ -4000,19 +4531,27 @@ function ecRender() {
 function ecRenderBloquesList(container) {
     const bloques = ecGetBloques();
     let html = "";
-    bloques.forEach(b => {
+    bloques.forEach(function(b, idx) {
         const count = b.entries ? b.entries.length : 0;
-        const badge = b.tipo === "sistema"
+        const esSistema = b.tipo === "sistema";
+        const badge = esSistema
             ? '<span style="background:#e2e8f0; color:#64748b; font-size:10px; padding:2px 6px; border-radius:3px; margin-left:6px;">sistema</span>'
             : "";
         const click = `ecView='block'; ecBloqueActualId='${b.id}'; ecRender();`;
+        let actions = `<div style="display:flex; gap:2px; flex-shrink:0;">
+            <button onclick="event.stopPropagation(); ecMoverBloque('${b.id}',-1);" title="Subir" style="background:none;border:none;cursor:pointer;font-size:13px;color:#64748b;padding:2px 3px;">&#9650;</button>
+            <button onclick="event.stopPropagation(); ecMoverBloque('${b.id}',1);" title="Bajar" style="background:none;border:none;cursor:pointer;font-size:13px;color:#64748b;padding:2px 3px;">&#9660;</button>
+            <button onclick="event.stopPropagation(); ecView='editBlock'; ecBloqueActualId='${b.id}'; ecRender();" title="Editar nombre" style="background:none;border:none;cursor:pointer;font-size:13px;color:#5c6bc0;padding:2px 3px;">&#9998;</button>
+            <button onclick="event.stopPropagation(); ecEliminarBloque('${b.id}');" title="Eliminar" style="background:none;border:none;cursor:pointer;font-size:13px;color:#ef4444;padding:2px 3px;">&#128465;</button>
+        </div>`;
         html += `<div style="display:flex; align-items:center; padding:10px 12px; border-bottom:1px solid #f1f5f9; cursor:pointer; border-radius:6px; margin-bottom:2px;" 
                       onmouseenter="this.style.background='#f8fafc'" onmouseleave="this.style.background=''" onclick="${click}">
-            <div style="flex:1;">
+            <div style="flex:1; min-width:0;">
                 <div style="font-size:13px; font-weight:600; color:#1e293b;">${b.nombre}${badge}</div>
-                <div style="font-size:11px; color:#94a3b8;">${count} entries</div>
+                <div style="font-size:11px; color:#94a3b8;">${count} / 25 entries</div>
             </div>
-            <span style="color:#cbd5e1; font-size:14px;">›</span>
+            ${actions}
+            <span style="color:#cbd5e1; font-size:14px; margin-left:4px;">&#8250;</span>
         </div>`;
     });
     html += `<div style="text-align:center; padding:12px;">
@@ -4025,176 +4564,306 @@ function ecRenderBloqueDetail(container) {
     const bloque = ecGetBloque(ecBloqueActualId);
     if (!bloque) { container.innerHTML = "<p style='color:#999;'>Bloque no encontrado.</p>"; return; }
     let html = "";
+    html += `<div style="display:flex; justify-content:space-between; align-items:center; padding:4px 0 8px; font-size:11px; color:#94a3b8;">
+        <span>Entries: ${(bloque.entries||[]).length} / 25</span>
+    </div>`;
     if (bloque.entries && bloque.entries.length > 0) {
-        bloque.entries.forEach(e => {
-            html += `<div style="display:flex; align-items:center; padding:8px 10px; border-bottom:1px solid #f1f5f9; gap:8px;">
-                <span style="width:10px; height:10px; border-radius:50%; background:${e.color || '#ccc'}; flex-shrink:0;"></span>
-                <div style="flex:1;">
-                    <div style="font-size:12px; font-weight:600; color:#333;">${e.nombre}</div>
-                    <div style="font-size:10px; color:#94a3b8;">${e.id}${e.tipo ? ' · ' + e.tipo : ''}</div>
+        bloque.entries.forEach(function(e, eIdx) {
+            html += `<div style="display:flex; align-items:center; padding:8px 10px; border-bottom:1px solid #f1f5f9; gap:6px;">
+                <span onclick="window.open('${colorCampo(e.id)}')" style="width:10px; height:10px; border-radius:50%; background:${e.color || '#ccc'}; flex-shrink:0; border:1px solid rgba(0,0,0,.15);"></span>
+                <div style="flex:1; min-width:0;">
+                    <div style="font-size:12px; font-weight:600; color:#333; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${e.nombre}</div>
+                    <div style="font-size:10px; color:#94a3b8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${e.id}${e.tipo ? ' · ' + e.tipo : ''}</div>
                 </div>`;
-            if (bloque.tipo !== "sistema") {
-                html += `<button onclick="ecEditEntryId='${e.id}'; ecView='editEntry'; ecRender();" style="background:none; border:none; cursor:pointer; font-size:14px; color:#5c6bc0; padding:2px 4px;">⚙</button>`;
-                html += `<button onclick="ecEliminarEntrada('${bloque.id}','${e.id}');" style="background:none; border:none; cursor:pointer; font-size:14px; color:#ef4444; padding:2px 4px;">🗑</button>`;
-            }
+            html += `<button onclick="ecMoverEntry('${bloque.id}','${e.id}',-1);" title="Subir" style="background:none;border:none;cursor:pointer;font-size:12px;color:#64748b;padding:1px 2px;">&#9650;</button>`;
+            html += `<button onclick="ecMoverEntry('${bloque.id}','${e.id}',1);" title="Bajar" style="background:none;border:none;cursor:pointer;font-size:12px;color:#64748b;padding:1px 2px;">&#9660;</button>`;
+            html += `<button onclick="ecEditEntryId='${e.id}'; ecView='editEntry'; ecRender();" title="Editar" style="background:none;border:none;cursor:pointer;font-size:13px;color:#5c6bc0;padding:1px 3px;">&#9998;</button>`;
+            html += `<button onclick="ecEliminarEntrada('${bloque.id}','${e.id}');" title="Eliminar" style="background:none;border:none;cursor:pointer;font-size:13px;color:#ef4444;padding:1px 3px;">&#128465;</button>`;
             html += `</div>`;
         });
     } else {
         html += '<p style="color:#94a3b8; font-size:12px; text-align:center; padding:8px;">Sin entries</p>';
     }
-    if (bloque.entries && bloque.entries.length < 15) {
+    if (bloque.entries && bloque.entries.length < 25) {
         html += `<div style="text-align:center; padding:10px;">
             <button onclick="ecView='newEntry'; ecRender();" style="background:#5c6bc0; color:white; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">+ AGREGAR ENTRY</button>
         </div>`;
-    } else if (bloque.entries && bloque.entries.length >= 15) {
-        html += '<p style="color:#ef4444; font-size:11px; text-align:center; padding:4px;">MÁXIMO 15 ENTRIES POR BLOQUE.</p>';
+    } else if (bloque.entries && bloque.entries.length >= 25) {
+        html += '<p style="color:#ef4444; font-size:11px; text-align:center; padding:4px;">Este bloque alcanzó el máximo de 25 Entries.</p>';
     }
-    if (bloque.tipo !== "sistema") {
-        html += `<div style="text-align:center; padding:8px; border-top:1px solid #f1f5f9; margin-top:8px;">
-            <button onclick="ecEliminarBloque('${bloque.id}')" style="background:#fee2e2; color:#dc2626; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">🗑 ELIMINAR BLOQUE</button>
-        </div>`;
-    }
+    html += `<div style="text-align:center; padding:8px; border-top:1px solid #f1f5f9; margin-top:8px;">
+        <button onclick="ecEliminarBloque('${bloque.id}')" style="background:#fee2e2; color:#dc2626; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">&#128465; ELIMINAR BLOQUE</button>
+    </div>`;
     container.innerHTML = html;
 }
 
 function ecRenderNewBlockForm(container) {
-    const colors = EC_COLOR_PALETTE;
     let html = `<div style="padding:4px 0;">
         <div style="margin-bottom:12px;">
-            <label style="font-size:12px; font-weight:600; color:#475569; display:block; margin-bottom:4px;">Nombre del Bloque</label>
-            <input id="ecNewBlockName" type="text" placeholder="Ej: MI BLOQUE PERSONALIZADO" style="width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; font-size:13px; box-sizing:border-box;">
+            <label style="font-size:12px; font-weight:600; color:#475569; display:block; margin-bottom:4px;">Nombre del bloque:</label>
+            <input id="ecNewBlockName" type="text" placeholder="Ej: DATOS DEL VEHÍCULO" style="width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; font-size:13px; box-sizing:border-box;">
         </div>
-        <div style="margin-bottom:12px;">
-            <label style="font-size:12px; font-weight:600; color:#475569; display:block; margin-bottom:4px;">Color del Bloque</label>
-            <div style="display:flex; gap:6px; flex-wrap:wrap;">
-                ${colors.map((c, i) => `<span onclick="document.getElementById('ecNewBlockColor').value='${c}'; document.querySelectorAll('.ec-color-sel').forEach(s=>s.style.outline='none'); this.style.outline='3px solid #333';" class="ec-color-sel" style="width:24px; height:24px; border-radius:50%; background:${c}; cursor:pointer; display:inline-block; ${i === 0 ? 'outline:3px solid #333;' : ''}"></span>`).join("")}
-            </div>
-            <input id="ecNewBlockColor" type="hidden" value="${colors[0]}">
-        </div>
-        <div style="text-align:right; padding-top:8px;">
-            <button onclick="ecCrearBloque();" style="background:#5c6bc0; color:white; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">GUARDAR</button>
+        <div class="modal-acciones">
+            <button onclick="ecCrearBloque();" style="background:#5c6bc0; color:white; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">CREAR BLOQUE</button>
+            <button onclick="ecView='blocks'; ecRender();" style="background:#e2e8f0; color:#333; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-size:12px;">CANCELAR</button>
         </div>
     </div>`;
     container.innerHTML = html;
+    setTimeout(function(){ var el = document.getElementById("ecNewBlockName"); if(el) el.focus(); }, 50);
+}
+
+function ecRenderEditBlockForm(container) {
+    const bloque = ecGetBloque(ecBloqueActualId);
+    if (!bloque) return;
+    let html = `<div style="padding:4px 0;">
+        <div style="margin-bottom:12px;">
+            <label style="font-size:12px; font-weight:600; color:#475569; display:block; margin-bottom:4px;">Nombre del bloque:</label>
+            <input id="ecEditBlockName" type="text" value="${bloque.nombre}" style="width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; font-size:13px; box-sizing:border-box;">
+        </div>
+        <div class="modal-acciones">
+            <button onclick="ecGuardarBloque();" style="background:#5c6bc0; color:white; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">GUARDAR</button>
+            <button onclick="ecView='block'; ecRender();" style="background:#e2e8f0; color:#333; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-size:12px;">CANCELAR</button>
+        </div>
+    </div>`;
+    container.innerHTML = html;
+    setTimeout(function(){ var el = document.getElementById("ecEditBlockName"); if(el) el.focus(); }, 50);
 }
 
 function ecCrearBloque() {
-    const nameEl = document.getElementById("ecNewBlockName");
-    const colorEl = document.getElementById("ecNewBlockColor");
-    if (!nameEl || !colorEl) return;
-    const name = nameEl.value.trim();
+    var nameEl = document.getElementById("ecNewBlockName");
+    if (!nameEl) return;
+    var name = nameEl.value.trim();
     if (!name) { alert("Ingrese un nombre para el bloque."); return; }
-    const id = "custom_" + name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
-    const blocks = ecGetCustomBloques();
-    if (blocks.find(b => b.id === id)) { alert("Ya existe un bloque con ese nombre."); return; }
-    blocks.push({ id, nombre: name.toUpperCase(), tipo: "custom", entries: [] });
+    var id = "custom_" + name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+    var blocks = ecGetCustomBloques();
+    if (blocks.find(function(b){ return b.id === id; })) { alert("Ya existe un bloque con ese nombre."); return; }
+    blocks.push({ id: id, nombre: name.toUpperCase(), tipo: "custom", entries: [] });
     ecSaveCustomBloques(blocks);
-    cerrarModalEditarCampos();
-    rebuildPaginasDinamicas();
-    modo = id;
-    mostrarPagina(modo);
+    sincronizarInterfazCampos();
+    ecView = "block";
+    ecBloqueActualId = id;
+    ecRender();
+}
+
+function ecGuardarBloque() {
+    var nameEl = document.getElementById("ecEditBlockName");
+    if (!nameEl || !ecBloqueActualId) return;
+    var newName = nameEl.value.trim();
+    if (!newName) { alert("Ingrese un nombre."); return; }
+    if (isSystemBlock(ecBloqueActualId)) {
+        if (!configuracionActual) configuracionActual = {};
+        if (!configuracionActual.blockNames) configuracionActual.blockNames = {};
+        configuracionActual.blockNames[ecBloqueActualId] = newName.toUpperCase();
+        programarGuardadoConfiguracion();
+    } else {
+        var blocks = ecGetCustomBloques();
+        var bIdx = blocks.findIndex(function(b){ return b.id === ecBloqueActualId; });
+        if (bIdx === -1) return;
+        blocks[bIdx].nombre = newName.toUpperCase();
+        ecSaveCustomBloques(blocks);
+    }
+    sincronizarInterfazCampos();
+    ecRender();
 }
 
 function ecEliminarBloque(bloqueId) {
-    if (!confirm("¿Eliminar este bloque y todas sus entries?")) return;
-    let blocks = ecGetCustomBloques();
-    blocks = blocks.filter(b => b.id !== bloqueId);
-    ecSaveCustomBloques(blocks);
-    cerrarModalEditarCampos();
-    rebuildPaginasDinamicas();
+    if (!confirm("¿Deseas eliminar este bloque y todos sus Entries?")) return;
+    var removedEntries = getActiveEntries(bloqueId);
+    var removedEntryIds = removedEntries.map(function(e){ return e.id; });
+    if (isSystemBlock(bloqueId)) {
+        if (!configuracionActual) configuracionActual = {};
+        if (!configuracionActual.deletedCustomBlocks) configuracionActual.deletedCustomBlocks = [];
+        if (configuracionActual.deletedCustomBlocks.indexOf(bloqueId) === -1) {
+            configuracionActual.deletedCustomBlocks.push(bloqueId);
+        }
+        if (configuracionActual.blockEntries) {
+            delete configuracionActual.blockEntries[bloqueId];
+        }
+    } else {
+        var blocks = ecGetCustomBloques();
+        blocks = blocks.filter(function(b){ return b.id !== bloqueId; });
+        ecSaveCustomBloques(blocks);
+        if (!configuracionActual) configuracionActual = {};
+        configuracionActual.customBlocks = blocks;
+    }
+    if (configuracionActual && configuracionActual.mapeo) {
+        removedEntryIds.forEach(function(entryId) {
+            if (configuracionActual.mapeo[entryId]) {
+                configuracionActual.mapeo[entryId].forEach(function(m) {
+                    if (configuracionActual.resaltados) configuracionActual.resaltados[m] = false;
+                });
+                configuracionActual.mapeo[entryId] = [];
+            }
+        });
+    }
+    programarGuardadoConfiguracion();
+    sincronizarInterfazCampos();
     if (modo === bloqueId) {
         modo = PAGINAS[0];
         mostrarPagina(modo);
     }
+    ecView = "blocks";
+    ecBloqueActualId = null;
+    ecRender();
+}
+
+function ecMoverBloque(bloqueId, dir) {
+    var allBloques = ecGetBloques();
+    var ids = allBloques.map(function(b){ return b.id; });
+    var idx = ids.indexOf(bloqueId);
+    if (idx === -1) return;
+    var newIdx = idx + dir;
+    if (newIdx < 0 || newIdx >= ids.length) return;
+    var temp = ids[idx];
+    ids[idx] = ids[newIdx];
+    ids[newIdx] = temp;
+    if (!configuracionActual) configuracionActual = {};
+    configuracionActual.blockOrder = ids;
+    if (!isSystemBlock(bloqueId)) {
+        var custom = ecGetCustomBloques();
+        var cIds = custom.map(function(b){ return b.id; });
+        var cIdx = cIds.indexOf(bloqueId);
+        if (cIdx !== -1) {
+            var cNewIdx = cIdx + dir;
+            if (cNewIdx >= 0 && cNewIdx < custom.length) {
+                var tmp = custom[cIdx];
+                custom[cIdx] = custom[cNewIdx];
+                custom[cNewIdx] = tmp;
+                ecSaveCustomBloques(custom);
+            }
+        }
+    }
+    programarGuardadoConfiguracion();
+    sincronizarInterfazCampos();
+    ecRender();
+}
+
+function ecMoverEntry(bloqueId, entryId, dir) {
+    var entries = JSON.parse(JSON.stringify(getActiveEntries(bloqueId)));
+    var eIdx = entries.findIndex(function(e){ return e.id === entryId; });
+    if (eIdx === -1) return;
+    var newIdx = eIdx + dir;
+    if (newIdx < 0 || newIdx >= entries.length) return;
+    var temp = entries[eIdx];
+    entries[eIdx] = entries[newIdx];
+    entries[newIdx] = temp;
+    saveBlockEntries(bloqueId, entries);
+    sincronizarInterfazCampos();
+    ecRender();
 }
 
 function ecRenderEntryForm(container, existingEntryId) {
-    const bloque = ecGetBloque(ecBloqueActualId);
+    var bloque = ecGetBloque(ecBloqueActualId);
     if (!bloque) return;
-    const existing = existingEntryId ? bloque.entries.find(e => e.id === existingEntryId) : null;
-    const colors = EC_COLOR_PALETTE;
-    const tipoOptions = ["texto", "texto_largo", "numero", "fecha"];
-    let html = `<div style="padding:4px 0;">
-        <div style="margin-bottom:12px;">
-            <label style="font-size:12px; font-weight:600; color:#475569; display:block; margin-bottom:4px;">Nombre</label>
-            <input id="ecEntryName" type="text" value="${existing ? existing.nombre : ''}" placeholder="Nombre descriptivo" style="width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; font-size:13px; box-sizing:border-box;">
-        </div>
-        <div style="margin-bottom:12px;">
-            <label style="font-size:12px; font-weight:600; color:#475569; display:block; margin-bottom:4px;">Variable / ID</label>
-            <input id="ecEntryVar" type="text" value="${existing ? existing.id : ''}" placeholder="identificador_unico" style="width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; font-size:13px; box-sizing:border-box;">
-        </div>
-        <div style="margin-bottom:12px;">
-            <label style="font-size:12px; font-weight:600; color:#475569; display:block; margin-bottom:4px;">Color</label>
-            <div style="display:flex; gap:6px; flex-wrap:wrap;">
-                ${colors.map((c, i) => {
-                    const sel = (existing && existing.color === c) || (!existing && i === 0) ? 'outline:3px solid #333;' : '';
-                    return `<span onclick="document.getElementById('ecEntryColor').value='${c}'; document.querySelectorAll('.ec-entry-color-sel').forEach(s=>s.style.outline='none'); this.style.outline='3px solid #333';" class="ec-entry-color-sel" style="width:24px; height:24px; border-radius:50%; background:${c}; cursor:pointer; display:inline-block; ${sel}"></span>`;
-                }).join("")}
-            </div>
-            <input id="ecEntryColor" type="hidden" value="${existing ? existing.color : colors[0]}">
-        </div>
-        <div style="margin-bottom:12px;">
-            <label style="font-size:12px; font-weight:600; color:#475569; display:block; margin-bottom:4px;">Tipo</label>
-            <select id="ecEntryTipo" style="width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; font-size:13px; box-sizing:border-box;">
-                ${tipoOptions.map(t => `<option value="${t}" ${existing && existing.tipo === t ? 'selected' : ''}>${t}</option>`).join("")}
-            </select>
-        </div>
-        <div style="text-align:right; padding-top:8px;">
-            <button onclick="ecGuardarEntrada();" style="background:#5c6bc0; color:white; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">GUARDAR</button>
-            <button onclick="ecView='block'; ecEditEntryId=null; ecRender();" style="background:#e2e8f0; color:#333; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-size:12px; margin-left:6px;">CANCELAR</button>
-        </div>
-    </div>`;
+    var existing = existingEntryId ? bloque.entries.find(function(e){ return e.id === existingEntryId; }) : null;
+    var colors = EC_COLOR_PALETTE;
+    var tipoOptions = ["texto", "textarea", "fecha", "numero", "email"];
+    var html = '<div style="padding:4px 0;">';
+    html += '<div class="modal-campo"><label>Nombre visible:</label>';
+    html += '<input id="ecEntryName" type="text" value="' + (existing ? existing.nombre : '') + '" placeholder="Nombre del campo"></div>';
+    html += '<div class="modal-campo"><label>Variable:</label>';
+    html += '<input id="ecEntryVar" type="text" value="' + (existing ? existing.id : '') + '" placeholder="NOMBRE_VARIABLE_1"';
+    if (existing) html += ' readonly style="background:#f1f5f9;"';
+    html += '></div>';
+    html += '<div class="modal-campo"><label>Color:</label><div style="display:flex;gap:5px;flex-wrap:wrap;" id="ecColorPalette">';
+    colors.forEach(function(c) {
+        var sel = (existing && existing.color === c) || (!existing && c === colors[0]);
+        html += '<span data-color="' + c + '" onclick="ecSelectColor(this)" style="width:24px;height:24px;border-radius:50%;background:' + c + ';cursor:pointer;display:inline-block;' + (sel ? 'outline:3px solid #333;outline-offset:2px;' : '') + '"></span>';
+    });
+    html += '</div><input id="ecEntryColor" type="hidden" value="' + (existing ? existing.color : colors[0]) + '"></div>';
+    html += '<div class="modal-campo"><label>Tipo:</label>';
+    html += '<select id="ecEntryTipo">';
+    tipoOptions.forEach(function(t) {
+        html += '<option value="' + t + '"' + (existing && existing.tipo === t ? ' selected' : '') + '>' + t + '</option>';
+    });
+    html += '</select></div>';
+    html += '<div class="modal-acciones">';
+    html += '<button onclick="ecGuardarEntrada();" style="background:#5c6bc0;color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;">AGREGAR</button>';
+    html += '<button onclick="ecView=\'block\'; ecEditEntryId=null; ecRender();" style="background:#e2e8f0;color:#333;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:12px;">CANCELAR</button>';
+    html += '</div></div>';
     container.innerHTML = html;
+    if (!existingEntryId) {
+        setTimeout(function(){ var el = document.getElementById("ecEntryName"); if(el) el.focus(); }, 50);
+    }
+}
+
+function ecSelectColor(el) {
+    document.querySelectorAll('#ecColorPalette span').forEach(function(s){ s.style.outline = 'none'; s.style.outlineOffset = '0'; });
+    el.style.outline = '3px solid #333';
+    el.style.outlineOffset = '2px';
+    var hidden = document.getElementById("ecEntryColor");
+    if (hidden) hidden.value = el.dataset.color;
 }
 
 function ecGuardarEntrada() {
-    const bloque = ecGetBloque(ecBloqueActualId);
-    if (!bloque || bloque.tipo === "sistema") return;
-    const nameEl = document.getElementById("ecEntryName");
-    const varEl = document.getElementById("ecEntryVar");
-    const colorEl = document.getElementById("ecEntryColor");
-    const tipoEl = document.getElementById("ecEntryTipo");
+    var bloque = ecGetBloque(ecBloqueActualId);
+    if (!bloque) return;
+    var nameEl = document.getElementById("ecEntryName");
+    var varEl = document.getElementById("ecEntryVar");
+    var colorEl = document.getElementById("ecEntryColor");
+    var tipoEl = document.getElementById("ecEntryTipo");
     if (!nameEl || !varEl || !colorEl || !tipoEl) return;
-    const nombre = nameEl.value.trim();
-    const variable = varEl.value.trim();
-    const color = colorEl.value;
-    const tipo = tipoEl.value;
+    var nombre = nameEl.value.trim();
+    var variable = varEl.value.trim().toUpperCase().replace(/[^A-Z0-9_]/g, "_").replace(/^_+|_+$/g, "");
+    var color = colorEl.value;
+    var tipo = tipoEl.value;
     if (!nombre || !variable) { alert("Nombre y Variable son obligatorios."); return; }
-    const blocks = ecGetCustomBloques();
-    const blockIdx = blocks.findIndex(b => b.id === ecBloqueActualId);
-    if (blockIdx === -1) return;
+    var entries = JSON.parse(JSON.stringify(getActiveEntries(ecBloqueActualId)));
     if (ecEditEntryId) {
-        const eIdx = blocks[blockIdx].entries.findIndex(e => e.id === ecEditEntryId);
+        var eIdx = entries.findIndex(function(e){ return e.id === ecEditEntryId; });
         if (eIdx !== -1) {
-            blocks[blockIdx].entries[eIdx] = { id: variable, nombre, variable, color, tipo };
+            entries[eIdx] = { id: variable, nombre: nombre, variable: variable, color: color, tipo: tipo };
         }
     } else {
-        if (blocks[blockIdx].entries.length >= 15) { alert("MÁXIMO 15 ENTRIES POR BLOQUE."); return; }
-        if (blocks[blockIdx].entries.find(e => e.id === variable)) { alert("Ya existe una entry con esa variable."); return; }
-        blocks[blockIdx].entries.push({ id: variable, nombre, variable, color, tipo });
+        if (entries.length >= 25) { alert("Este bloque alcanzó el máximo de 25 Entries."); return; }
+        var exists = entries.find(function(e){ return e.id === variable; });
+        if (exists) { alert("Esta variable ya existe en el bloque " + bloque.nombre + "."); return; }
+        entries.push({ id: variable, nombre: nombre, variable: variable, color: color, tipo: tipo });
     }
-    ecSaveCustomBloques(blocks);
+    saveBlockEntries(ecBloqueActualId, entries);
     ecEditEntryId = null;
     ecView = "block";
     ecRender();
+    sincronizarInterfazCampos();
 }
 
 function ecEliminarEntrada(bloqueId, entryId) {
-    if (!confirm("¿Eliminar esta entry?")) return;
-    const blocks = ecGetCustomBloques();
-    const blockIdx = blocks.findIndex(b => b.id === bloqueId);
-    if (blockIdx === -1) return;
-    blocks[blockIdx].entries = blocks[blockIdx].entries.filter(e => e.id !== entryId);
-    ecSaveCustomBloques(blocks);
+    if (!confirm("¿Deseas eliminar este Entry?")) return;
+    var entries = JSON.parse(JSON.stringify(getActiveEntries(bloqueId)));
+    entries = entries.filter(function(e){ return e.id !== entryId; });
+    saveBlockEntries(bloqueId, entries);
+    if (configuracionActual && configuracionActual.mapeo && configuracionActual.mapeo[entryId]) {
+        configuracionActual.mapeo[entryId].forEach(function(m) {
+            if (configuracionActual.resaltados) configuracionActual.resaltados[m] = false;
+        });
+        configuracionActual.mapeo[entryId] = [];
+    }
     ecRender();
+    sincronizarInterfazCampos();
 }
 
 function ecGetAllCustomEntries() {
-    const entries = [];
-    ecGetCustomBloques().forEach(b => {
-        if (b.entries) b.entries.forEach(e => entries.push({ ...e, bloqueId: b.id, bloqueNombre: b.nombre }));
+    var entries = [];
+    ecGetBloques().forEach(function(b) {
+        if (b.entries) b.entries.forEach(function(e) {
+            entries.push({ id: e.id, nombre: e.nombre, variable: e.variable, color: e.color, tipo: e.tipo, bloqueId: b.id, bloqueNombre: b.nombre });
+        });
     });
     return entries;
+}
+
+function sincronizarInterfazCampos() {
+    rebuildPaginasDinamicas();
+    if (configuracionActual && configuracionActual.mapeo) {
+        var conteos = {};
+        Object.keys(configuracionActual.mapeo).forEach(function(entryId) {
+            var markers = configuracionActual.mapeo[entryId];
+            if (markers && markers.length > 0) {
+                conteos[entryId] = markers.length;
+            }
+        });
+        marcarEntriesConVariables(configuracionActual.mapeo, conteos);
+    }
 }
 
 function ecOnOpen() {
@@ -4202,7 +4871,23 @@ function ecOnOpen() {
     document.getElementById("btnEditarCampos").style.display = "inline-block";
 }
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", function() {
     rebuildPaginasDinamicas();
-    document.getElementById("btnEditarCampos").style.display = "inline-block";
+    var btn = document.getElementById("btnEditarCampos");
+    if (btn) btn.style.display = "inline-block";
+    document.addEventListener("keydown", function(e) {
+        if (e.target && e.target.classList && e.target.classList.contains("match-nav-badge")) {
+            if (e.key === "Enter") {
+                e.preventDefault();
+                var entryKey = e.target.getAttribute("data-entry-key");
+                if (entryKey) {
+                    if (e.shiftKey) {
+                        navegarCoincidenciaAnterior(entryKey);
+                    } else {
+                        navegarCoincidencia(entryKey);
+                    }
+                }
+            }
+        }
+    });
 });

@@ -471,17 +471,18 @@ async def subir_documento_base_endpoint(
     if texto:
         try:
             variables = detectar_variables(texto)
-            config = {
-                "variables": variables if variables else [],
-                "version": 1,
-            }
+            existing_config = leer_config_documento_base(service, doc_id) or {}
+            config = dict(existing_config)
+            config["variables"] = variables if variables else []
+            config["config_version"] = max(config.get("config_version", 1), 2)
+            config["fecha_configuracion"] = datetime.datetime.now().isoformat()
             guardar_config_documento_base(service, doc_id, config)
             print(f"🔑 Detectadas {len(config['variables'])} variables en {doc_id}")
             for v in config['variables']:
                 print(f"   - {v['key']}: {v['marcador']}")
         except Exception as e:
             print(f"⚠️ Error detectando variables: {e}")
-            config = {"variables": [], "version": 1}
+            config = {"variables": [], "config_version": 1}
             guardar_config_documento_base(service, doc_id, config)
 
         guardar_datos_documento_base(service, doc_id, {
@@ -585,6 +586,7 @@ async def actualizar_documento_base_endpoint(
         subir_documento_base,
         guardar_datos_documento_base,
         guardar_config_documento_base,
+        leer_config_documento_base,
     )
     from ia import detectar_variables
 
@@ -641,15 +643,19 @@ async def actualizar_documento_base_endpoint(
             config = None
             try:
                 variables = detectar_variables(texto)
-                config = {
-                    "variables": variables if variables else [],
-                    "version": 1,
-                }
+                existing_config = leer_config_documento_base(service, doc_id) or {}
+                config = dict(existing_config)
+                config["variables"] = variables if variables else []
+                config["config_version"] = max(config.get("config_version", 1), 2)
+                config["fecha_configuracion"] = datetime.datetime.now().isoformat()
                 guardar_config_documento_base(service, doc_id, config)
                 print(f"🔑 Detectadas {len(config['variables'])} variables en {doc_id}")
             except Exception as e:
                 print(f"⚠️ Error detectando variables: {e}")
-                config = {"variables": [], "version": 1}
+                existing_config = leer_config_documento_base(service, doc_id) or {}
+                config = dict(existing_config)
+                config["variables"] = []
+                config["config_version"] = max(config.get("config_version", 1), 2)
                 guardar_config_documento_base(service, doc_id, config)
 
             guardar_datos_documento_base(service, doc_id, {
@@ -741,11 +747,23 @@ def guardar_configuracion_documento_base_endpoint(doc_id: str, data: dict = Body
 
     mapeo = data.get("mapeo", {})
     resaltados = data.get("resaltados", {})
+    customBlocks = data.get("customBlocks", [])
+    deletedCustomBlocks = data.get("deletedCustomBlocks", [])
+    blockEntries = data.get("blockEntries", {})
+    blockOrder = data.get("blockOrder", None)
+    blockNames = data.get("blockNames", None)
+    memoriaDocData = data.get("memoriaDocData", None)
     config = {
         "mapeo": mapeo,
         "resaltados": resaltados,
+        "customBlocks": customBlocks,
+        "deletedCustomBlocks": deletedCustomBlocks,
+        "blockEntries": blockEntries,
+        "blockOrder": blockOrder,
+        "blockNames": blockNames,
+        "memoriaDocData": memoriaDocData,
         "fecha_configuracion": datetime.datetime.now().isoformat(),
-        "config_version": 1,
+        "config_version": 2,
     }
     carpeta_doc = guardar_config_documento_base(service, doc_id, config)
     print(f"[MEMORIA] Guardando configuración: {doc_id} ({len(mapeo)} entradas, {len(resaltados)} resaltados)")
@@ -786,12 +804,11 @@ def reanalizar_documento_base_endpoint(doc_id: str):
         print(f"⚠️ Error reanalizando: {e}")
         variables = []
 
-    config = {
-        "variables": variables if variables else [],
-        "mapeo": {},
-        "fecha_configuracion": datetime.datetime.now().isoformat(),
-        "config_version": 1,
-    }
+    existing_config = leer_config_documento_base(service, doc_id) or {}
+    config = dict(existing_config)
+    config["variables"] = variables if variables else []
+    config["fecha_configuracion"] = datetime.datetime.now().isoformat()
+    config["config_version"] = max(config.get("config_version", 1), 2)
     guardar_config_documento_base(service, doc_id, config)
     print(f"🔄 REANALIZADO: {doc_id} ({len(variables)} variables)")
     return {"ok": True, "config": config}

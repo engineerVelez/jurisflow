@@ -1123,8 +1123,36 @@ function buscarEnMaestro(contenido) {
         .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
         .replace(/[\s\u2013\u2014\u2015]+/g, " ").trim();
 
+    var normVar = contenido.toUpperCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .replace(/[\s\u2013\u2014\u2015]+/g, "_").replace(/[^A-Z0-9_]/g, "")
+        .replace(/^_+|_+$/g, "");
+
+    for (var varName in MAESTRO_VARIABLES) {
+        if (!MAESTRO_VARIABLES.hasOwnProperty(varName)) continue;
+        if (varName === normVar) {
+            var def = MAESTRO_VARIABLES[varName];
+            if (def.entryId) return { varName: varName, entryId: def.entryId, match: varName.toLowerCase() };
+        }
+    }
+
     var mejorMatch = null;
     var mejorLongitud = 0;
+
+    for (var varName in MAESTRO_VARIABLES) {
+        if (!MAESTRO_VARIABLES.hasOwnProperty(varName)) continue;
+        var def = MAESTRO_VARIABLES[varName];
+        if (!def.aliases) continue;
+        for (var j = 0; j < def.aliases.length; j++) {
+            var alias = def.aliases[j];
+            var a = alias.toLowerCase()
+                .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+                .replace(/[\s\u2013\u2014\u2015]+/g, " ").trim();
+            if (c === a) {
+                return { varName: varName, entryId: def.entryId, match: a };
+            }
+        }
+    }
 
     for (var varName in MAESTRO_VARIABLES) {
         if (!MAESTRO_VARIABLES.hasOwnProperty(varName)) continue;
