@@ -535,6 +535,7 @@ async def subir_documento_base_endpoint(
     }
 
     registro["documentos"].append(nuevo_doc)
+    _agregarATaxonomia(registro, (categoria or "").upper().strip(), subcategoria.strip() or None, (procedimiento or "").strip() or None)
     guardar_registro_documentos_base(service, registro)
 
     print(f"📚 DOCUMENTO BASE SUBIDO: {nuevo_doc['nombre']}")
@@ -699,6 +700,7 @@ async def actualizar_documento_base_endpoint(
 
         print(f"📄 ARCHIVO REEMPLAZADO en {doc_id}: {archivo.filename}")
 
+    _agregarATaxonomia(registro, categoria.upper().strip() if categoria else "", subcategoria.strip() if subcategoria else None, procedimiento.strip() if procedimiento else None)
     guardar_registro_documentos_base(service, registro)
     print(f"✏️ DOCUMENTO BASE ACTUALIZADO: {doc_id}")
     return {"ok": True}
@@ -863,6 +865,11 @@ async def guardar_cambios_documento_base_endpoint(doc_id: str, data: dict = Body
     if not texto_plano.strip():
         raise HTTPException(status_code=400, detail="No se proporcionó texto para guardar")
 
+    lineas_tp = texto_plano.split("\n")
+    while lineas_tp and lineas_tp[-1].strip() == "":
+        lineas_tp.pop()
+    texto_plano = "\n".join(lineas_tp)
+
     service = get_service()
     registro = leer_registro_documentos_base(service)
     documentos = registro.get("documentos", [])
@@ -932,6 +939,56 @@ async def guardar_cambios_documento_base_endpoint(doc_id: str, data: dict = Body
 
     print(f"✅ CAMBIOS GUARDADOS: {doc_id} (v{current_version} → v{new_version})")
     return {"ok": True, "version": new_version, "anterior_version": current_version}
+
+
+def _agregarATaxonomia(registro, categoria, subcategoria=None, procedimiento=None):
+    if not categoria:
+        return
+    taxonomy = registro.setdefault("taxonomy", {})
+    cats_extra = taxonomy.setdefault("categorias_extra", {})
+    cat_upper = categoria.upper().strip()
+    if cat_upper not in cats_extra:
+        cats_extra[cat_upper] = {}
+    if subcategoria:
+        sub_upper = subcategoria.strip()
+        if sub_upper not in cats_extra[cat_upper]:
+            cats_extra[cat_upper][sub_upper] = []
+        if procedimiento:
+            proc_upper = procedimiento.strip().upper()
+            if proc_upper and proc_upper not in cats_extra[cat_upper][sub_upper]:
+                cats_extra[cat_upper][sub_upper].append(proc_upper)
+    procs_extra = taxonomy.setdefault("procedimientos_extra", [])
+    if procedimiento:
+        proc_upper = procedimiento.strip().upper()
+        if proc_upper and proc_upper not in procs_extra:
+            procs_extra.append(proc_upper)
+
+
+@app.get("/api/documentos-base/taxonomy")
+def obtener_taxonomia():
+    from drive import leer_registro_documentos_base
+    service = get_service()
+    registro = leer_registro_documentos_base(service)
+    taxonomy = registro.get("taxonomy", {"categorias_extra": {}, "procedimientos_extra": []})
+    return taxonomy
+
+
+@app.post("/api/documentos-base/taxonomy/add")
+def agregar_taxonomia_endpoint(data: dict = Body(...)):
+    from drive import (
+        leer_registro_documentos_base,
+        guardar_registro_documentos_base,
+    )
+    categoria = (data.get("categoria") or "").strip()
+    subcategoria = (data.get("subcategoria") or "").strip() or None
+    procedimiento = (data.get("procedimiento") or "").strip() or None
+    if not categoria:
+        raise HTTPException(status_code=400, detail="Categoría requerida")
+    service = get_service()
+    registro = leer_registro_documentos_base(service)
+    _agregarATaxonomia(registro, categoria, subcategoria, procedimiento)
+    guardar_registro_documentos_base(service, registro)
+    return {"ok": True, "taxonomy": registro.get("taxonomy", {})}
 
 
 @app.post("/api/documentos-base/seed")

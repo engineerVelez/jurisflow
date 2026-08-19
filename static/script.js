@@ -1,4 +1,4 @@
-﻿const VERSION_SCRIPT = 141;
+﻿const VERSION_SCRIPT = 142;
 console.log("🔥 VERSION NUEVA 🔥 v" + VERSION_SCRIPT);
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -221,6 +221,69 @@ const PROCEDIMIENTOS = [
     "NO APLICA"
 ];
 
+let taxonomyCache = { categorias_extra: {}, procedimientos_extra: [] };
+let taxonomyCargada = false;
+
+async function cargarTaxonomia() {
+    try {
+        const resp = await fetch("/api/documentos-base/taxonomy");
+        if (resp.ok) {
+            taxonomyCache = await resp.json();
+            taxonomyCargada = true;
+        }
+    } catch (e) {
+        console.error("Error cargando taxonomía:", e);
+    }
+}
+
+function getTodasCategorias() {
+    const base = new Set(CATEGORIAS_PRINCIPALES);
+    Object.keys(taxonomyCache.categorias_extra || {}).forEach(c => base.add(c));
+    if (documentosBaseCache) {
+        documentosBaseCache.forEach(d => { if (d.categoria) base.add(d.categoria); });
+    }
+    const arr = [...base].filter(c => c.toUpperCase() !== "OTROS").sort((a, b) => a.localeCompare(b, "es"));
+    const otrosCat = [...base].find(c => c.toUpperCase() === "OTROS");
+    if (otrosCat) arr.push(otrosCat);
+    return arr;
+}
+
+function getSubcategoriasDe(cat) {
+    if (!cat) return [];
+    const base = SUBCATEGORIAS[cat] || [];
+    const extra = Object.keys((taxonomyCache.categorias_extra || {})[cat.toUpperCase()] || {});
+    const merged = new Set([...base, ...extra]);
+    return [...merged].sort((a, b) => a.localeCompare(b, "es"));
+}
+
+function getProcedimientosDe(cat, sub) {
+    const base = [...PROCEDIMIENTOS];
+    if (cat && sub) {
+        const extra = ((taxonomyCache.categorias_extra || {})[cat.toUpperCase()] || {})[sub] || [];
+        extra.forEach(p => { if (!base.includes(p)) base.push(p); });
+    } else if (taxonomyCache.procedimientos_extra) {
+        taxonomyCache.procedimientos_extra.forEach(p => { if (!base.includes(p)) base.push(p); });
+    }
+    return base;
+}
+
+async function agregarATaxonomia(categoria, subcategoria, procedimiento) {
+    if (!categoria) return;
+    try {
+        const resp = await fetch("/api/documentos-base/taxonomy/add", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ categoria, subcategoria, procedimiento })
+        });
+        if (resp.ok) {
+            const result = await resp.json();
+            taxonomyCache = result.taxonomy || taxonomyCache;
+        }
+    } catch (e) {
+        console.error("Error guardando taxonomía:", e);
+    }
+}
+
 let memoriaDocs = {
     documentos: {}
 };
@@ -382,8 +445,8 @@ document.addEventListener("DOMContentLoaded", () => {
         if (documentoBaseId) {
             if (window._timerDetectarEntries) clearTimeout(window._timerDetectarEntries);
             window._timerDetectarEntries = setTimeout(function() {
-                detectarYSincronizarEntries();
-            }, 500);
+                actualizarEntriesEnTiempoReal();
+            }, 200);
         }
     });
 
@@ -400,6 +463,14 @@ document.addEventListener("DOMContentLoaded", () => {
             marcarCambio();
         }
     }, true);
+
+    window.addEventListener("beforeunload", function(e) {
+        if (cambiosPendientes > 0) {
+            e.preventDefault();
+            e.returnValue = "Hay cambios sin guardar. ¿Deseas salir?";
+            return e.returnValue;
+        }
+    });
 
 });
 
@@ -999,6 +1070,14 @@ document.getElementById("form").addEventListener("submit", async (e) => {
 // Se extrajo del submit para reutilizarla con "Aplicar a los análisis".
 async function aplicarDatosIA(data) {
     const text = data.texto || "";
+
+    // SEPARAR ESTADOS: al analizar un documento nuevo, limpiar los entries
+    // que pertenecían al repositorio o a otro documento previo.
+    configuracionActual = configuracionActual || {};
+    configuracionActual.dynamicEntries = {};
+    matchNavigationState = {};
+    var containerEntries = document.getElementById("v142EntriesContainer");
+    if (containerEntries) containerEntries.innerHTML = "";
 
     // 🔎 TRAZADO: valor que DEVOLVIÓ la IA para el documento ACTUAL
     console.log("🤖 VALOR IA:", data.datos?.tipo_juicio);
@@ -2689,7 +2768,7 @@ function programarGuardado() {
 async function guardarEnServidor() {
     const editor = document.getElementById("editor");
     const html = editor.innerHTML;
-    const plano = editor.innerText; // texto limpio (sin spans) para Drive
+    const plano = editorAPlano();
 
     const nombre = document.getElementById("actor")?.value || "documento";
 
@@ -2715,7 +2794,7 @@ async function guardarEnServidor() {
 
 async function descargarDocx() {
     try {
-        const texto = document.getElementById("editor").innerText;
+        const texto = editorAPlano();
 
         const response = await fetch("/exportar-docx", {
             method: "POST",
@@ -2850,7 +2929,7 @@ async function confirmarGuardarCambios() {
     if (acciones) acciones.style.display = "none";
 
     try {
-        var textoPlano = document.getElementById("editor").innerText;
+        var textoPlano = editorAPlano();
 
         var resp = await fetch("/api/documentos-base/" + documentoBaseId + "/guardar-cambios", {
             method: "POST",
@@ -2891,7 +2970,7 @@ function cerrarEstadoGuardado() {
 function generarDocumento() {
     const editor = document.getElementById("editor");
 
-    const texto = editor.innerText;
+    const texto = editorAPlano();
 
     const blob = new Blob([texto], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
@@ -3095,6 +3174,7 @@ async function cargarDocumentosBase() {
         if (!resp.ok) throw new Error("Error al cargar");
         const data = await resp.json();
         documentosBaseCache = data.documentos || [];
+        await cargarTaxonomia();
         inicializarFiltroCategorias();
         renderizarDocumentosBase();
     } catch (e) {
@@ -3312,6 +3392,33 @@ async function guardarConfiguracionEnDrive() {
         guardadoConfigPendiente = true;
         setTimeout(() => guardarConfiguracionEnDrive(), 5000);
     }
+}
+
+function editorAPlano() {
+    var editor = document.getElementById("editor");
+    if (!editor) return "";
+    var lineas = [];
+    editor.childNodes.forEach(function(nodo) {
+        if (nodo.nodeType === 3) {
+            var t = nodo.textContent.trim();
+            if (t) lineas.push(t);
+        } else if (nodo.nodeType === 1) {
+            var tag = nodo.tagName;
+            if (tag === "P") {
+                var txt = nodo.innerText.replace(/\n+$/, "").trim();
+                lineas.push(txt);
+            } else if (tag === "BR") {
+                lineas.push("");
+            } else {
+                var txt = nodo.innerText ? nodo.innerText.replace(/\n+$/, "").trim() : "";
+                if (txt) lineas.push(txt);
+            }
+        }
+    });
+    while (lineas.length > 0 && lineas[lineas.length - 1] === "") {
+        lineas.pop();
+    }
+    return lineas.join("\n");
 }
 
 function textoPlanoToHtml(texto) {
@@ -4407,6 +4514,272 @@ function construirListaEntriesPlana(variables, placeholders, mapeo) {
     });
 }
 
+// ============================================================
+// CURSOR SAVE/RESTORE (para cambios en editor.innerHTML)
+// ============================================================
+
+function guardarPosicionCursor() {
+    var sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return null;
+    var range = sel.getRangeAt(0);
+    var editor = document.getElementById("editor");
+    if (!editor || !editor.contains(range.startContainer)) return null;
+    var preRange = document.createRange();
+    preRange.selectNodeContents(editor);
+    preRange.setEnd(range.startContainer, range.startOffset);
+    return { offset: preRange.toString().length };
+}
+
+function restaurarPosicionCursor(pos) {
+    if (!pos) return;
+    var editor = document.getElementById("editor");
+    if (!editor) return;
+    var sel = window.getSelection();
+    var range = document.createRange();
+    var walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT, null, false);
+    var currentOffset = 0;
+    var targetNode = null;
+    var targetOffset = 0;
+    while (walker.nextNode()) {
+        var node = walker.currentNode;
+        var nodeLen = node.textContent.length;
+        if (currentOffset + nodeLen >= pos.offset) {
+            targetNode = node;
+            targetOffset = pos.offset - currentOffset;
+            break;
+        }
+        currentOffset += nodeLen;
+    }
+    if (targetNode) {
+        range.setStart(targetNode, Math.min(targetOffset, targetNode.textContent.length));
+        range.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(range);
+    }
+}
+
+// ============================================================
+// v142: ACTUALIZACIÓN INCREMENTAL EN TIEMPO REAL
+// ============================================================
+
+function crearElementoEntrada(variable, count) {
+    var de = configuracionActual.dynamicEntries[variable];
+    var color = de ? de.color : "#D1C4E9";
+    var nombre = de ? de.nombre : nombreAmigableVariable(variable);
+    var value = de ? (de.value || "") : "";
+
+    if (!matchNavigationState[variable]) {
+        matchNavigationState[variable] = { currentIndex: 0 };
+    }
+    var nav = matchNavigationState[variable];
+    var displayIndex = (count > 0) ? ((nav.currentIndex % count) + 1) : 0;
+
+    var div = document.createElement("div");
+    div.className = "entry-item";
+    div.setAttribute("data-variable", variable);
+    div.innerHTML =
+        '<span class="entry-dot" style="background:' + color + '"></span>' +
+        '<span class="entry-nombre" title="' + variable + '">' + nombre + '</span>' +
+        '<input class="entry-input-valor" data-variable="' + variable + '" placeholder="Valor..." value="' + value.replace(/"/g, '&quot;') + '">' +
+        '<span class="entry-contador" data-variable="' + variable + '" style="background:' + color + '" title="' + displayIndex + ' de ' + count + ' coincidencias">' +
+        displayIndex + '/' + count +
+        '</span>';
+
+    var badge = div.querySelector(".entry-contador");
+    if (badge) {
+        badge.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            navegarContador(variable);
+        };
+    }
+    var nombreEl = div.querySelector(".entry-nombre");
+    if (nombreEl) {
+        nombreEl.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (matchNavigationState[variable]) {
+                matchNavigationState[variable].currentIndex = -1;
+            }
+            navegarContador(variable);
+        };
+    }
+    var input = div.querySelector(".entry-input-valor");
+    if (input) {
+        input.oninput = function() {
+            reemplazarEntryEnDocumento(variable, input.value);
+        };
+    }
+    return div;
+}
+
+function actualizarContadorEntrada(variable, count) {
+    var badge = document.querySelector('.entry-contador[data-variable="' + variable + '"]');
+    if (!badge) return false;
+    if (!matchNavigationState[variable]) matchNavigationState[variable] = { currentIndex: 0 };
+    var nav = matchNavigationState[variable];
+    if (nav.currentIndex >= count) nav.currentIndex = 0;
+    var displayIndex = (count > 0) ? ((nav.currentIndex % count) + 1) : 0;
+    badge.textContent = displayIndex + "/" + count;
+    badge.title = displayIndex + " de " + count + " coincidencias";
+    return true;
+}
+
+function actualizarHeaderEntries(container) {
+    var total = container.querySelectorAll(".entry-item").length;
+    var titulo = container.querySelector(".v142-seccion-titulo");
+    if (titulo) titulo.textContent = "ENTRIES (" + total + ")";
+}
+
+function actualizarEntriesEnTiempoReal() {
+    if (!documentoBaseId) return;
+
+    var placeholders = detectarPlaceholdersDelDocumento();
+    var vinculadas = detectarEntriesVinculadas();
+    var container = document.getElementById("v142EntriesContainer");
+    if (!container) return;
+
+    if (!configuracionActual) configuracionActual = {};
+    if (!configuracionActual.dynamicEntries) configuracionActual.dynamicEntries = {};
+
+    var variablesUnificadas = {};
+
+    Object.keys(placeholders).forEach(function(v) {
+        variablesUnificadas[v] = {
+            variable: v,
+            count: placeholders[v].count,
+            instances: placeholders[v].instances,
+            fromText: true
+        };
+    });
+
+    Object.keys(vinculadas).forEach(function(v) {
+        if (!variablesUnificadas[v]) {
+            variablesUnificadas[v] = {
+                variable: v,
+                count: vinculadas[v].count,
+                instances: vinculadas[v].instances,
+                fromSpans: true
+            };
+        } else {
+            variablesUnificadas[v].fromSpans = true;
+        }
+    });
+
+    Object.keys(configuracionActual.dynamicEntries).forEach(function(v) {
+        if (!variablesUnificadas[v]) {
+            var entry = configuracionActual.dynamicEntries[v];
+            if (entry && entry.value && entry.placeholder) {
+                variablesUnificadas[v] = {
+                    variable: v,
+                    count: 0,
+                    instances: [],
+                    fromConfig: true
+                };
+            } else {
+                delete configuracionActual.dynamicEntries[v];
+            }
+        }
+    });
+
+    var variablesDetectadas = Object.keys(variablesUnificadas);
+
+    variablesDetectadas.forEach(function(variable) {
+        if (!configuracionActual.dynamicEntries[variable]) {
+            configuracionActual.dynamicEntries[variable] = {
+                variable: variable,
+                nombre: nombreAmigableVariable(variable),
+                color: asignarColorDinamico(variable),
+                instances: variablesUnificadas[variable].count,
+                order: Object.keys(configuracionActual.dynamicEntries).length,
+                value: "",
+                placeholder: "[" + variable + "]"
+            };
+        } else {
+            configuracionActual.dynamicEntries[variable].instances = variablesUnificadas[variable].count;
+            if (!configuracionActual.dynamicEntries[variable].nombre) {
+                configuracionActual.dynamicEntries[variable].nombre = nombreAmigableVariable(variable);
+            }
+            if (!configuracionActual.dynamicEntries[variable].color) {
+                configuracionActual.dynamicEntries[variable].color = asignarColorDinamico(variable);
+            }
+            if (!configuracionActual.dynamicEntries[variable].placeholder) {
+                configuracionActual.dynamicEntries[variable].placeholder = "[" + variable + "]";
+            }
+        }
+    });
+
+    var existingItems = container.querySelectorAll(".entry-item");
+    var existingVars = {};
+    existingItems.forEach(function(item) {
+        existingVars[item.getAttribute("data-variable")] = item;
+    });
+    var detectedSet = {};
+    variablesDetectadas.forEach(function(v) { detectedSet[v] = true; });
+    var panelChanged = false;
+
+    existingItems.forEach(function(item) {
+        var v = item.getAttribute("data-variable");
+        if (!detectedSet[v]) {
+            var de = configuracionActual.dynamicEntries[v];
+            if (!de || !de.value) {
+                item.remove();
+                delete configuracionActual.dynamicEntries[v];
+                delete matchNavigationState[v];
+                panelChanged = true;
+            }
+        }
+    });
+
+    variablesDetectadas.forEach(function(variable) {
+        if (!existingVars[variable] || !container.querySelector('.entry-item[data-variable="' + variable + '"]')) {
+            var count = variablesUnificadas[variable] ? variablesUnificadas[variable].count : 0;
+            var newEntry = crearElementoEntrada(variable, count);
+            var inserted = false;
+            var allItems = container.querySelectorAll(".entry-item");
+            var newOrder = configuracionActual.dynamicEntries[variable] ? configuracionActual.dynamicEntries[variable].order : 999;
+            for (var i = 0; i < allItems.length; i++) {
+                var ev = allItems[i].getAttribute("data-variable");
+                var eo = configuracionActual.dynamicEntries[ev] ? configuracionActual.dynamicEntries[ev].order : 999;
+                if (newOrder < eo) {
+                    container.insertBefore(newEntry, allItems[i]);
+                    inserted = true;
+                    break;
+                }
+            }
+            if (!inserted) {
+                container.appendChild(newEntry);
+            }
+            panelChanged = true;
+        }
+    });
+
+    variablesDetectadas.forEach(function(variable) {
+        var count = variablesUnificadas[variable] ? variablesUnificadas[variable].count : 0;
+        actualizarContadorEntrada(variable, count);
+    });
+
+    if (panelChanged) {
+        actualizarHeaderEntries(container);
+    }
+
+    var mapeo = {};
+    variablesDetectadas.forEach(function(variable) {
+        mapeo[variable] = [];
+        var count = variablesUnificadas[variable].count || 1;
+        for (var i = 0; i < count; i++) {
+            mapeo[variable].push("[" + variable + "]");
+        }
+    });
+
+    var pos = guardarPosicionCursor();
+    resaltarMarcadoresBase(mapeo, {});
+    aplicarValoresGuardadosEnSpans();
+    restaurarPosicionCursor(pos);
+
+    actualizarEstadoBotonGuardarCambios();
+}
+
 function navegarContador(variable) {
     var editor = document.getElementById("editor");
     if (!editor) return;
@@ -4601,17 +4974,14 @@ function subirDocumentoBase() {
     const proSelect = document.getElementById("modalBaseProcedimiento");
     const subSelect = document.getElementById("modalBaseSubcategoria");
 
-    if (catSelect.options.length <= 1) {
-        catSelect.innerHTML = '<option value="">Seleccionar...</option>' +
-            CATEGORIAS_PRINCIPALES.map(c => `<option value="${c}">${c}</option>`).join("") +
-            '<option value="__NUEVA__">+ Nueva categoría</option>';
-    }
+    const cats = getTodasCategorias();
+    catSelect.innerHTML = '<option value="">Seleccionar...</option>' +
+        cats.map(c => `<option value="${c}">${c}</option>`).join("") +
+        '<option value="__NUEVA__">+ Nueva categoría</option>';
     catSelect.value = "";
 
-    if (proSelect.options.length <= 1) {
-        proSelect.innerHTML = '<option value="">No aplica</option>' +
-            PROCEDIMIENTOS.map(p => `<option value="${p}">${p}</option>`).join("");
-    }
+    proSelect.innerHTML = '<option value="">No aplica</option>' +
+        PROCEDIMIENTOS.map(p => `<option value="${p}">${p}</option>`).join("");
     proSelect.value = "";
 
     subSelect.innerHTML = '<option value="">Seleccionar...</option>';
@@ -4626,12 +4996,16 @@ function cerrarModalSubirBase() {
 function cambiarCategoriaModal() {
     const cat = document.getElementById("modalBaseCategoria").value;
     const subSelect = document.getElementById("modalBaseSubcategoria");
+    const proSelect = document.getElementById("modalBaseProcedimiento");
     const nuevaCatWrap = document.getElementById("modalBaseNuevaCatWrap");
     const nuevaSubWrap = document.getElementById("modalBaseNuevaSubWrap");
 
     if (cat === "__NUEVA__") {
         nuevaCatWrap.style.display = "block";
         subSelect.innerHTML = '<option value="">Seleccionar...</option>';
+        proSelect.innerHTML = '<option value="">No aplica</option>' +
+            PROCEDIMIENTOS.map(p => `<option value="${p}">${p}</option>`).join("");
+        proSelect.value = "";
         nuevaSubWrap.style.display = "none";
         return;
     }
@@ -4639,20 +5013,33 @@ function cambiarCategoriaModal() {
     nuevaCatWrap.style.display = "none";
     nuevaSubWrap.style.display = "none";
 
-    const subs = SUBCATEGORIAS[cat] || [];
+    const subs = getSubcategoriasDe(cat);
     subSelect.innerHTML = '<option value="">Seleccionar...</option>' +
         subs.map(s => `<option value="${s}">${s}</option>`).join("") +
         '<option value="__NUEVA__">+ Nueva subcategoría</option>';
+
+    const procs = getProcedimientosDe(cat, null);
+    proSelect.innerHTML = '<option value="">No aplica</option>' +
+        procs.map(p => `<option value="${p}">${p}</option>`).join("");
+    proSelect.value = "";
 }
 
 function cambiarSubcategoriaModal() {
     const val = document.getElementById("modalBaseSubcategoria").value;
     const wrap = document.getElementById("modalBaseNuevaSubWrap");
+    const proSelect = document.getElementById("modalBaseProcedimiento");
+    const cat = document.getElementById("modalBaseCategoria").value;
     if (val === "__NUEVA__") {
         wrap.style.display = "block";
         document.getElementById("modalBaseNuevaSub").value = "";
     } else {
         wrap.style.display = "none";
+    }
+    if (val && cat) {
+        const procs = getProcedimientosDe(cat, val);
+        proSelect.innerHTML = '<option value="">No aplica</option>' +
+            procs.map(p => `<option value="${p}">${p}</option>`).join("");
+        proSelect.value = "";
     }
 }
 
@@ -4702,6 +5089,7 @@ async function confirmarSubirDocumentoBase() {
         }
 
         const result = await resp.json();
+        await agregarATaxonomia(categoria, subcategoria || null, procedimiento || null);
         await cargarDocumentosBase();
 
         if (result.sugerencia) {
@@ -4735,6 +5123,7 @@ async function aplicarSugerenciaClasificacion(docId, sugerencia) {
             })
         });
         if (resp.ok) {
+            await agregarATaxonomia(sugerencia.categoria, sugerencia.subcategoria || null, sugerencia.procedimiento || null);
             await cargarDocumentosBase();
         }
     } catch (e) {
@@ -4752,8 +5141,9 @@ function editarDocumentoBase() {
     const subSelect = document.getElementById("modalEditarBaseSubcategoria");
     const proSelect = document.getElementById("modalEditarBaseProcedimiento");
 
+    const cats = getTodasCategorias();
     catSelect.innerHTML = '<option value="">Seleccionar...</option>' +
-        CATEGORIAS_PRINCIPALES.map(c => `<option value="${c}">${c}</option>`).join("") +
+        cats.map(c => `<option value="${c}">${c}</option>`).join("") +
         '<option value="__NUEVA__">+ Nueva categoría</option>';
 
     proSelect.innerHTML = '<option value="">No aplica</option>' +
@@ -4769,7 +5159,7 @@ function editarDocumentoBase() {
     document.getElementById("modalEditarBaseDescripcion").value = doc.descripcion || "";
     document.getElementById("modalEditarBaseArchivo").value = "";
 
-    if (doc.categoria && CATEGORIAS_PRINCIPALES.includes(doc.categoria)) {
+    if (doc.categoria && cats.includes(doc.categoria)) {
         catSelect.value = doc.categoria;
         cambiarCategoriaModalEditar();
     } else if (doc.categoria) {
@@ -4801,12 +5191,16 @@ function cerrarModalEditarBase() {
 function cambiarCategoriaModalEditar() {
     const cat = document.getElementById("modalEditarBaseCategoria").value;
     const subSelect = document.getElementById("modalEditarBaseSubcategoria");
+    const proSelect = document.getElementById("modalEditarBaseProcedimiento");
     const nuevaCatWrap = document.getElementById("modalEditarBaseNuevaCatWrap");
     const nuevaSubWrap = document.getElementById("modalEditarBaseNuevaSubWrap");
 
     if (cat === "__NUEVA__") {
         nuevaCatWrap.style.display = "block";
         subSelect.innerHTML = '<option value="">Seleccionar...</option>';
+        proSelect.innerHTML = '<option value="">No aplica</option>' +
+            PROCEDIMIENTOS.map(p => `<option value="${p}">${p}</option>`).join("");
+        proSelect.value = "";
         nuevaSubWrap.style.display = "none";
         return;
     }
@@ -4814,20 +5208,33 @@ function cambiarCategoriaModalEditar() {
     nuevaCatWrap.style.display = "none";
     nuevaSubWrap.style.display = "none";
 
-    const subs = SUBCATEGORIAS[cat] || [];
+    const subs = getSubcategoriasDe(cat);
     subSelect.innerHTML = '<option value="">Seleccionar...</option>' +
         subs.map(s => `<option value="${s}">${s}</option>`).join("") +
         '<option value="__NUEVA__">+ Nueva subcategoría</option>';
+
+    const procs = getProcedimientosDe(cat, null);
+    proSelect.innerHTML = '<option value="">No aplica</option>' +
+        procs.map(p => `<option value="${p}">${p}</option>`).join("");
+    proSelect.value = "";
 }
 
 function cambiarSubcategoriaModalEditar() {
     const val = document.getElementById("modalEditarBaseSubcategoria").value;
     const wrap = document.getElementById("modalEditarBaseNuevaSubWrap");
+    const proSelect = document.getElementById("modalEditarBaseProcedimiento");
+    const cat = document.getElementById("modalEditarBaseCategoria").value;
     if (val === "__NUEVA__") {
         wrap.style.display = "block";
         document.getElementById("modalEditarBaseNuevaSub").value = "";
     } else {
         wrap.style.display = "none";
+    }
+    if (val && cat) {
+        const procs = getProcedimientosDe(cat, val);
+        proSelect.innerHTML = '<option value="">No aplica</option>' +
+            procs.map(p => `<option value="${p}">${p}</option>`).join("");
+        proSelect.value = "";
     }
 }
 
@@ -4876,6 +5283,7 @@ async function confirmarEditarDocumentoBase() {
         }
 
         await cargarDocumentosBase();
+        await agregarATaxonomia(categoria, subcategoria || null, procedimiento || null);
         alert("Documento base actualizado.");
     } catch (e) {
         console.error(e);
@@ -4921,6 +5329,7 @@ async function seedDocumentosBase() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+    cargarTaxonomia();
     seedDocumentosBase();
     inicializarFiltroCategorias();
 });
@@ -4930,8 +5339,12 @@ function inicializarFiltroCategorias() {
     if (!contenedor) return;
     let html = '<button class="repo-cat-btn activa" onclick="filtrarCategoria(\'TODOS\', this)">TODOS</button>';
     const catsUsadas = [...new Set(documentosBaseCache.map(d => d.categoria).filter(Boolean))];
-    const catsFinales = [...new Set([...CATEGORIAS_PRINCIPALES, ...catsUsadas])];
-    catsFinales.forEach(c => {
+    const catsTax = Object.keys(taxonomyCache.categorias_extra || {});
+    const catsSet = new Set([...CATEGORIAS_PRINCIPALES, ...catsUsadas, ...catsTax]);
+    const catsSorted = [...catsSet].filter(c => c.toUpperCase() !== "OTROS").sort((a, b) => a.localeCompare(b, "es"));
+    const otrosCat = [...catsSet].find(c => c.toUpperCase() === "OTROS");
+    if (otrosCat) catsSorted.push(otrosCat);
+    catsSorted.forEach(c => {
         html += `<button class="repo-cat-btn" onclick="filtrarCategoria('${c.replace(/'/g, "\\'")}', this)">${c}</button>`;
     });
     contenedor.innerHTML = html;
