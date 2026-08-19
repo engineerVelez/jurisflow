@@ -1,109 +1,174 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>JurisFlow AI</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
     <style>
-        * { box-sizing: border-box; }
+        * { box-sizing: border-box; margin: 0; }
 
         body {
-            margin: 0;
-            background: #eef2f7;
-            color: #1f2937;
-            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: #f0f2f5;
+            color: #1a1a2e;
+            font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
         }
+
+        ::-webkit-scrollbar { width: 7px; height: 7px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
         /* ===== CABECERA ===== */
         .header {
-            background: #1e3a5f;
+            background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #1a365d 100%);
             color: #fff;
-            padding: 14px 24px;
+            padding: 0 28px;
+            height: 60px;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, .18);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, .25);
+            position: sticky;
+            top: 0;
+            z-index: 100;
         }
         .header h1 {
-            margin: 0;
-            font-size: 20px;
-            font-weight: 600;
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: -0.3px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
+        .header h1 span:first-child { font-size: 22px; }
         .header .sub {
-            font-size: 12px;
-            opacity: .8;
-            margin-top: 2px;
+            font-size: 11.5px;
+            opacity: .65;
+            margin-top: 1px;
+            font-weight: 400;
+            letter-spacing: .2px;
+        }
+        #version-badge {
+            font-size: 10px;
+            font-weight: 700;
+            color: #60a5fa;
+            background: rgba(96, 165, 250, .12);
+            border: 1px solid rgba(96, 165, 250, .3);
+            border-radius: 12px;
+            padding: 2px 8px;
+            vertical-align: middle;
+            letter-spacing: .4px;
         }
 
         /* ===== BOTONES ===== */
         .btn {
-            padding: 8px 14px;
+            padding: 8px 16px;
             border: none;
-            border-radius: 6px;
+            border-radius: 8px;
             cursor: pointer;
-            font-size: 13px;
+            font-size: 12.5px;
             font-weight: 600;
-            transition: filter .15s, transform .05s;
+            font-family: inherit;
+            transition: all .15s ease;
+            letter-spacing: .2px;
         }
-        .btn:hover { filter: brightness(1.08); }
-        .btn:active { transform: translateY(1px); }
-        .btn-primary { background: #16a34a; color: #fff; }
-        .btn-secundario { background: #475569; color: #fff; }
-        .btn-nav { background: #e2e8f0; color: #1e293b; }
+        .btn:hover { filter: brightness(1.1); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,.15); }
+        .btn:active { transform: translateY(0); box-shadow: none; }
+        .btn-primary {
+            background: linear-gradient(135deg, #16a34a, #15803d);
+            color: #fff;
+            box-shadow: 0 2px 8px rgba(22, 163, 74, .3);
+        }
+        .btn-secundario {
+            background: #475569;
+            color: #fff;
+            box-shadow: 0 2px 6px rgba(71, 85, 105, .2);
+        }
+        .btn-secundario:hover { background: #334155; }
+        .btn-nav {
+            background: #fff;
+            color: #334155;
+            border: 1px solid #e2e8f0;
+        }
+        .btn-nav:hover { background: #f8fafc; border-color: #cbd5e1; }
+        .btn-danger {
+            background: linear-gradient(135deg, #dc2626, #b91c1c);
+            color: #fff;
+        }
+        .btn-indigo {
+            background: linear-gradient(135deg, #4f46e5, #4338ca);
+            color: #fff;
+        }
 
         /* ===== SUBIDA ===== */
         .subida {
-            padding: 16px 24px;
+            padding: 14px 28px;
             display: flex;
             align-items: center;
             gap: 12px;
             flex-wrap: wrap;
+            background: #fff;
+            border-bottom: 1px solid #e5e7eb;
         }
         #file {
             font-size: 13px;
-            padding: 6px 8px;
-            background: #fff;
+            padding: 7px 10px;
+            background: #f9fafb;
             border: 1px solid #d1d5db;
-            border-radius: 6px;
+            border-radius: 8px;
+            font-family: inherit;
         }
 
         /* ===== LAYOUT ===== */
         .layout {
             display: flex;
-            gap: 18px;
-            padding: 20px 24px 28px;
+            gap: 20px;
+            padding: 20px 28px 32px;
             align-items: flex-start;
         }
         .panel {
             background: #fff;
-            border-radius: 10px;
-            box-shadow: 0 1px 4px rgba(15, 23, 42, .08);
-            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, .06), 0 4px 12px rgba(0, 0, 0, .04);
+            border: 1px solid #e5e7eb;
+            overflow: hidden;
         }
         .panel-izq { flex: 0 0 63%; }
-        .panel-der { flex: 1 1 37%; max-height: 680px; overflow-y: auto; }
+        .panel-der { flex: 1 1 37%; max-height: 700px; overflow-y: auto; }
         .panel-titulo {
-            padding: 12px 16px;
-            border-bottom: 1px solid #eef2f6;
-            font-weight: 600;
-            font-size: 14px;
-            color: #334155;
+            padding: 14px 18px;
+            border-bottom: 1px solid #f1f5f9;
+            font-weight: 700;
+            font-size: 13.5px;
+            color: #1e293b;
             display: flex;
             align-items: center;
             justify-content: space-between;
+            background: #fafbfc;
         }
+        .panel-titulo span { display: flex; align-items: center; gap: 6px; }
 
         /* ===== EDITOR ===== */
         #editor {
-            padding: 18px;
-            min-height: 480px;
-            max-height: 640px;
+            padding: 20px;
+            min-height: 500px;
+            max-height: 660px;
             overflow-y: auto;
             white-space: pre-wrap;
-            font-family: 'Consolas', 'Courier New', monospace;
-            font-size: 13.5px;
-            line-height: 1.55;
+            font-family: 'Consolas', 'Fira Code', 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.65;
             background: #fff;
             outline: none;
+            color: #1e293b;
+        }
+        #editor:focus {
+            box-shadow: inset 0 0 0 2px rgba(37, 99, 235, .08);
         }
 
         /* ===== ENTRYS ===== */
@@ -111,7 +176,7 @@
             display: flex;
             align-items: center;
             gap: 8px;
-            margin-bottom: 8px;
+            margin-bottom: 7px;
         }
         .btn-rojo {
             width: 18px;
@@ -121,43 +186,48 @@
             border-radius: 50%;
             cursor: pointer;
             padding: 0;
-            box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .12);
-            transition: transform .1s;
+            box-shadow: inset 0 0 0 1.5px rgba(0, 0, 0, .15);
+            transition: transform .12s ease;
         }
-        .btn-rojo:hover { transform: scale(1.25); }
+        .btn-rojo:hover { transform: scale(1.3); box-shadow: inset 0 0 0 1.5px rgba(0,0,0,.15), 0 2px 6px rgba(0,0,0,.15); }
         .campo input {
             flex: 1;
-            padding: 7px 10px;
-            border: 1px solid #d1d5db;
-            border-radius: 6px;
+            padding: 8px 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
             font-size: 13px;
-            transition: border-color .15s, box-shadow .15s;
+            font-family: inherit;
+            transition: all .15s ease;
+            background: #fafbfc;
         }
         .campo input:focus {
             outline: none;
-            border-color: #2563eb;
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, .12);
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, .1);
+            background: #fff;
         }
+        .campo input::placeholder { color: #94a3b8; }
 
         /* ===== LEYENDA DE COLORES ===== */
         .legend {
             display: flex;
             flex-wrap: wrap;
-            gap: 8px 16px;
-            padding: 10px 16px;
+            gap: 8px 14px;
+            padding: 12px 18px;
             background: #f8fafc;
-            border-bottom: 1px solid #eef2f6;
-            font-size: 11.5px;
+            border-bottom: 1px solid #f1f5f9;
+            font-size: 11px;
         }
-        .legend .item { display: flex; align-items: center; gap: 6px; color: #475569; }
-        .legend .chip { width: 14px; height: 14px; border-radius: 4px; display: inline-block; }
+        .legend .item { display: flex; align-items: center; gap: 5px; color: #475569; font-weight: 500; }
+        .legend .chip { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
 
         h4 {
-            margin: 16px 0 8px;
-            font-size: 12px;
+            margin: 16px 0 10px;
+            font-size: 11px;
             text-transform: uppercase;
-            letter-spacing: .6px;
+            letter-spacing: .8px;
             color: #1e3a5f;
+            font-weight: 700;
         }
 
         /* ===== ACCIONES ===== */
@@ -165,8 +235,9 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 12px 16px;
-            border-top: 1px solid #eef2f6;
+            padding: 12px 18px;
+            border-top: 1px solid #f1f5f9;
+            background: #fafbfc;
         }
         .nav-der { display: flex; gap: 8px; }
 
@@ -178,49 +249,63 @@
             left: 50%;
             transform: translate(-50%, -50%);
             background: #fff;
-            border-radius: 10px;
-            padding: 20px;
-            box-shadow: 0 12px 32px rgba(0, 0, 0, .28);
-            width: 440px;
+            border-radius: 14px;
+            padding: 24px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, .3), 0 0 0 1px rgba(0,0,0,.05);
+            width: 460px;
             z-index: 1000;
-            border: 1px solid #e2e8f0;
+        }
+        #configPanel h3 {
+            font-size: 18px;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 8px;
         }
         #promptIA {
             width: 100%;
             height: 150px;
-            border: 1px solid #d1d5db;
-            border-radius: 6px;
-            padding: 10px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 12px;
             font-family: inherit;
             font-size: 13px;
+            resize: vertical;
         }
+        #promptIA:focus { border-color: #3b82f6; outline: none; box-shadow: 0 0 0 3px rgba(59,130,246,.1); }
 
         /* ===== REPOSITORIO DE DOCUMENTOS BASE ===== */
         .repositorio-toggle {
-            padding: 10px 24px;
+            padding: 12px 28px;
             background: #fff;
-            border-bottom: 1px solid #e2e8f0;
+            border-bottom: 1px solid #e5e7eb;
             cursor: pointer;
             user-select: none;
             display: flex;
             align-items: center;
             gap: 8px;
-            font-size: 14px;
-            font-weight: 600;
+            font-size: 13px;
+            font-weight: 700;
             color: #1e3a5f;
-            transition: background .15s;
+            transition: all .15s;
+            letter-spacing: .3px;
         }
-        .repositorio-toggle:hover { background: #f1f5f9; }
+        .repositorio-toggle:hover { background: #f8fafc; }
         .repositorio-toggle .flecha {
-            font-size: 11px;
-            transition: transform .2s;
+            font-size: 10px;
+            transition: transform .2s ease;
         }
+        .repositorio-toggle .flecha.abierto { transform: rotate(180deg); }
 
         .repositorio-panel {
             display: none;
             background: #fff;
-            border-bottom: 1px solid #e2e8f0;
-            padding: 14px 24px 18px;
+            border-bottom: 1px solid #e5e7eb;
+            padding: 16px 28px 20px;
+            animation: slideDown .2s ease;
+        }
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-8px); }
+            to { opacity: 1; transform: translateY(0); }
         }
         .repositorio-panel.abierto { display: block; }
 
@@ -232,15 +317,18 @@
         }
         .repo-busqueda input {
             flex: 1;
-            padding: 8px 12px;
-            border: 1px solid #d1d5db;
-            border-radius: 6px;
+            padding: 9px 14px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
             font-size: 13px;
+            font-family: inherit;
+            background: #f9fafb;
         }
         .repo-busqueda input:focus {
             outline: none;
-            border-color: #2563eb;
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, .12);
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, .1);
+            background: #fff;
         }
 
         .repo-categorias {
@@ -250,35 +338,36 @@
             flex-wrap: nowrap;
             overflow-x: auto;
             padding-bottom: 4px;
-            -webkit-overflow-scrolling: touch;
         }
-        .repo-categorias::-webkit-scrollbar { height: 4px; }
-        .repo-categorias::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 2px; }
+        .repo-categorias::-webkit-scrollbar { height: 3px; }
+        .repo-categorias::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 2px; }
         .repo-cat-btn {
-            padding: 4px 10px;
-            border: 1px solid #d1d5db;
-            border-radius: 14px;
+            padding: 5px 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 20px;
             background: #fff;
             cursor: pointer;
-            font-size: 11.5px;
+            font-size: 11px;
             font-weight: 600;
             color: #475569;
-            transition: all .15s;
+            transition: all .15s ease;
+            white-space: nowrap;
         }
-        .repo-cat-btn:hover { background: #f1f5f9; }
+        .repo-cat-btn:hover { background: #f1f5f9; border-color: #cbd5e1; }
         .repo-cat-btn.activa {
             background: #1e3a5f;
             color: #fff;
             border-color: #1e3a5f;
+            box-shadow: 0 2px 8px rgba(30, 58, 95, .25);
         }
 
         .repo-lista {
-            max-height: 220px;
+            max-height: 230px;
             overflow-y: auto;
-            border: 1px solid #e2e8f0;
-            border-radius: 6px;
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
             margin-bottom: 14px;
-            background: #f8fafc;
+            background: #fafbfc;
         }
         .repo-item {
             padding: 10px 14px;
@@ -287,27 +376,28 @@
             align-items: center;
             gap: 10px;
             font-size: 13px;
-            border-bottom: 1px solid #eef2f6;
-            transition: background .1s;
+            border-bottom: 1px solid #f1f5f9;
+            transition: all .1s ease;
         }
         .repo-item:last-child { border-bottom: none; }
-        .repo-item:hover { background: #eef2f6; }
+        .repo-item:hover { background: #eef2ff; }
         .repo-item.seleccionado {
             background: #dbeafe;
-            border-left: 3px solid #2563eb;
+            border-left: 3px solid #3b82f6;
         }
-        .repo-item-icono { font-size: 16px; }
+        .repo-item-icono { font-size: 18px; }
         .repo-item-info { flex: 1; }
-        .repo-item-nombre { font-weight: 600; color: #1e293b; }
+        .repo-item-nombre { font-weight: 600; color: #1e293b; font-size: 13px; }
         .repo-item-cat {
-            font-size: 11px;
+            font-size: 10.5px;
             color: #64748b;
-            margin-top: 2px;
+            margin-top: 1px;
+            font-weight: 500;
         }
         .repo-item-badge {
             font-size: 10px;
-            padding: 2px 6px;
-            border-radius: 8px;
+            padding: 2px 8px;
+            border-radius: 10px;
             background: #dcfce7;
             color: #166534;
             font-weight: 600;
@@ -318,69 +408,164 @@
             gap: 8px;
         }
         .repo-acciones .btn {
-            padding: 7px 14px;
-            font-size: 12.5px;
+            padding: 8px 16px;
+            font-size: 12px;
         }
 
         .repo-empty {
-            padding: 24px;
+            padding: 28px;
             text-align: center;
             color: #94a3b8;
             font-size: 13px;
         }
 
-        /* ===== MODAL SUBIR DOCUMENTO BASE ===== */
+        /* ===== MODAL OVERLAY ===== */
         .modal-overlay {
             display: none;
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0,0,0,.45);
+            background: rgba(15, 23, 42, .55);
+            backdrop-filter: blur(4px);
             z-index: 2000;
             align-items: center;
             justify-content: center;
+            animation: fadeIn .15s ease;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
         }
         .modal-overlay.abierto { display: flex; }
         .modal-box {
             background: #fff;
-            border-radius: 10px;
-            padding: 24px;
-            width: 460px;
+            border-radius: 14px;
+            padding: 28px;
+            width: 480px;
             max-width: 92vw;
-            box-shadow: 0 12px 32px rgba(0,0,0,.25);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, .25);
+            animation: modalSlide .2s ease;
+        }
+        @keyframes modalSlide {
+            from { opacity: 0; transform: translateY(-12px) scale(.97); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
         }
         .modal-box h3 {
-            margin: 0 0 16px;
-            font-size: 16px;
-            color: #1e3a5f;
+            margin: 0 0 18px;
+            font-size: 17px;
+            font-weight: 700;
+            color: #1e293b;
         }
         .modal-campo {
-            margin-bottom: 12px;
+            margin-bottom: 14px;
         }
         .modal-campo label {
             display: block;
             font-size: 12px;
             font-weight: 600;
-            color: #475569;
-            margin-bottom: 4px;
+            color: #374151;
+            margin-bottom: 5px;
         }
         .modal-campo input, .modal-campo select, .modal-campo textarea {
             width: 100%;
-            padding: 8px 10px;
-            border: 1px solid #d1d5db;
-            border-radius: 6px;
+            padding: 9px 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
             font-size: 13px;
             font-family: inherit;
+            background: #fafbfc;
+            transition: all .15s;
         }
         .modal-campo input:focus, .modal-campo select:focus, .modal-campo textarea:focus {
             outline: none;
-            border-color: #2563eb;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, .1);
+            background: #fff;
         }
-        .modal-campo textarea { height: 60px; resize: vertical; }
+        .modal-campo textarea { height: 70px; resize: vertical; }
         .modal-acciones {
             display: flex;
-            gap: 8px;
+            gap: 10px;
             justify-content: flex-end;
-            margin-top: 16px;
+            margin-top: 20px;
+            padding-top: 16px;
+            border-top: 1px solid #f1f5f9;
+        }
+
+        /* ===== EC MODAL (EDITAR CAMPOS) ===== */
+        #modalEditarCampos .ec-card {
+            background: white;
+            border-radius: 14px;
+            width: 440px;
+            max-width: 92vw;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 20px 60px rgba(0,0,0,.25);
+            border: 1px solid #e5e7eb;
+        }
+        .ec-block-item {
+            padding: 12px 14px;
+            border: 1px solid #f1f5f9;
+            border-radius: 10px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: all .12s ease;
+            cursor: pointer;
+        }
+        .ec-block-item:hover {
+            background: #f8fafc;
+            border-color: #e2e8f0;
+            box-shadow: 0 2px 8px rgba(0,0,0,.05);
+        }
+        .ec-entry-item {
+            padding: 10px 12px;
+            border: 1px solid #f1f5f9;
+            border-radius: 8px;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all .1s ease;
+        }
+        .ec-entry-item:hover {
+            background: #f8fafc;
+            border-color: #e2e8f0;
+        }
+
+        /* ===== PAGE NAV TABS ===== */
+        .pagina-entries {
+            padding: 4px 0;
+        }
+
+        /* ===== NOTIFICATION TOAST ===== */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: #1e293b;
+            color: #fff;
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 500;
+            box-shadow: 0 8px 24px rgba(0,0,0,.2);
+            z-index: 9999;
+            animation: toastIn .2s ease;
+        }
+        @keyframes toastIn {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ===== RESPONSIVE ===== */
+        @media (max-width: 900px) {
+            .layout { flex-direction: column; padding: 12px 16px; }
+            .panel-izq { flex: none; width: 100%; }
+            .panel-der { max-height: none; width: 100%; }
+            .header { padding: 0 16px; }
+            .subida, .repositorio-toggle, .repositorio-panel { padding-left: 16px; padding-right: 16px; }
         }
     </style>
 </head>
@@ -389,7 +574,7 @@
 
 <div class="header">
     <div>
-        <h1>⚖️ Replace Docs JuRidocs <span id="version-badge" style="font-size:12px;color:#ff9800;vertical-align:middle;background:#2a2a2a;border:1px solid #ff9800;border-radius:4px;padding:1px 6px;">v138</span></h1>
+        <h1>⚖️ Replace Docs JuRidocs <span id="version-badge">v142</span></h1>
         <div class="sub">Análisis automático de documentos jurídicos</div>
     </div>
     <button class="btn btn-secundario" onclick="abrirConfig()">⚙ Configuración IA</button>
@@ -540,22 +725,22 @@
     <div class="panel panel-der">
         <div class="panel-titulo">
             <span>✏️ Campos detectados</span>
-            <button id="btnEditarCampos" onclick="abrirModalEditarCampos()" style="margin-left:auto; background:#5c6bc0; color:white; border:none; padding:4px 10px; border-radius:4px; cursor:pointer; font-size:11px;">✏ EDITAR CAMPOS</button>
+            <button id="btnEditarCampos" onclick="abrirModalEditarCampos()" class="btn btn-indigo" style="margin-left:auto; font-size:11px; padding:5px 12px;">EDITAR CAMPOS</button>
         </div>
 
         <div id="bannerConfianza" style="display:none; margin:0 16px 10px 16px; padding:10px 14px; border-radius:8px; font-size:14px; line-height:1.4;"></div>
 
         <!-- ===== MODAL EDITAR CAMPOS ===== -->
-        <div id="modalEditarCampos" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999; justify-content:center; align-items:center;">
-        <div style="background:white; border-radius:10px; width:440px; max-width:92vw; max-height:80vh; display:flex; flex-direction:column; box-shadow:0 12px 32px rgba(0,0,0,0.28); border:1px solid #e2e8f0;">
+        <div id="modalEditarCampos" class="modal-overlay">
+        <div class="ec-card">
             <!-- header dinámico -->
-            <div id="ecHeader" style="padding:16px 18px 12px; border-bottom:1px solid #e2e8f0; display:flex; align-items:center; gap:10px; flex-shrink:0;">
-                <button id="ecBtnBack" onclick="ecAtras()" style="display:none; background:none; border:none; font-size:18px; cursor:pointer; color:#555; padding:0 4px;">←</button>
-                <b id="ecTitulo" style="flex:1; font-size:15px; color:#333;">EDITAR CAMPOS</b>
-                <button onclick="cerrarModalEditarCampos()" style="background:none; border:none; font-size:20px; cursor:pointer; color:#999; padding:0;">✕</button>
+            <div id="ecHeader" style="padding:16px 18px 12px; border-bottom:1px solid #e5e7eb; display:flex; align-items:center; gap:10px; flex-shrink:0;">
+                <button id="ecBtnBack" onclick="ecAtras()" style="display:none; background:none; border:none; font-size:18px; cursor:pointer; color:#64748b; padding:0 4px; transition:color .1s;">←</button>
+                <b id="ecTitulo" style="flex:1; font-size:15px; color:#1e293b; font-weight:700;">EDITAR CAMPOS</b>
+                <button onclick="cerrarModalEditarCampos()" style="background:none; border:none; font-size:20px; cursor:pointer; color:#94a3b8; padding:0; transition:color .1s;" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#94a3b8'">✕</button>
             </div>
             <!-- contenido dinámico -->
-            <div id="ecBody" style="flex:1; overflow-y:auto; padding:12px 18px;"></div>
+            <div id="ecBody" style="flex:1; overflow-y:auto; padding:14px 18px;"></div>
         </div>
         </div>
 
@@ -1537,13 +1722,13 @@
 </div>
 
 <script src="/static/variables_maestro.js?v=3"></script>
-<script src="/static/script.js?v=141"></script>
+<script src="/static/script.js?v=142"></script>
 
 
 <!-- CONFIG -->
 <div id="configPanel">
 
-<h3>Configurar IA</h3>
+<h3 style="font-size:18px; font-weight:700; color:#1e293b; margin-bottom:4px;">Configurar IA</h3>
 
 <p style="font-size:12px; color:#555; margin-top:2px;">
     🔒 El prompt principal está <b>protegido en el servidor</b> y no se puede

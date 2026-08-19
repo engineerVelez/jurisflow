@@ -4467,7 +4467,7 @@ function ecGetBloque(bloqueId) {
 function abrirModalEditarCampos() {
     const modal = document.getElementById("modalEditarCampos");
     if (!modal) return;
-    modal.style.display = "flex";
+    modal.classList.add("abierto");
     ecView = "blocks";
     ecBloqueActualId = null;
     ecEditEntryId = null;
@@ -4477,7 +4477,7 @@ function abrirModalEditarCampos() {
 function cerrarModalEditarCampos() {
     const modal = document.getElementById("modalEditarCampos");
     if (!modal) return;
-    modal.style.display = "none";
+    modal.classList.remove("abierto");
     ecView = "blocks";
     ecBloqueActualId = null;
     ecEditEntryId = null;
