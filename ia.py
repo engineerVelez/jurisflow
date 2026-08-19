@@ -1163,6 +1163,57 @@ siempre al responder y al corregir documentos:
         return "Lo siento, hubo un error al hablar con la IA. Intenta de nuevo."
 
 
+def chatear_con_ia_streaming(mensaje, historial=None, instrucciones=""):
+    """Generator que yieldea chunks de la respuesta de la IA para streaming.
+
+    Yieldea dicts JSON serializados: {"chunk": "..."} o {"done": true} o {"error": "..."}
+    """
+
+    contexto = PROMPT_PRINCIPAL + MODO_CHAT
+
+    if instrucciones and instrucciones.strip():
+        contexto += f"""
+
+==================================================
+INSTRUCCIONES ADICIONALES DEL USUARIO (OBLIGATORIAS)
+==================================================
+El usuario configuró estas instrucciones para el análisis. RESPETALAS
+siempre al responder y al corregir documentos:
+
+{instrucciones.strip()}
+"""
+
+    mensajes = [
+        {"role": "system", "content": contexto}
+    ]
+
+    for h in (historial or []):
+        rol = "user" if h.get("rol") == "usuario" else "assistant"
+        contenido = h.get("contenido", "")
+        if contenido:
+            mensajes.append({"role": rol, "content": contenido})
+
+    mensajes.append({"role": "user", "content": mensaje})
+
+    try:
+        stream = client.chat.completions.create(
+            model="openai/gpt-oss-120b",
+            messages=mensajes,
+            temperature=0,
+            stream=True
+        )
+
+        for chunk in stream:
+            if chunk.choices and chunk.choices[0].delta.content:
+                yield json.dumps({"chunk": chunk.choices[0].delta.content}, ensure_ascii=False) + "\n"
+
+        yield json.dumps({"done": True}, ensure_ascii=False) + "\n"
+
+    except Exception as e:
+        print("❌ ERROR CHAT STREAMING:", type(e).__name__, "-", e)
+        yield json.dumps({"error": str(e)}, ensure_ascii=False) + "\n"
+
+
 def sugerir_clasificacion(texto):
     """Analiza el texto y sugiere categoría, subcategoría y procedimiento."""
 

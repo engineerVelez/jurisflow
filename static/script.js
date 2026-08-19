@@ -378,6 +378,13 @@ document.addEventListener("DOMContentLoaded", () => {
         guardarEstadoEditor();
         programarGuardado();
         guardarEstado();
+        marcarCambio();
+        if (documentoBaseId) {
+            if (window._timerDetectarEntries) clearTimeout(window._timerDetectarEntries);
+            window._timerDetectarEntries = setTimeout(function() {
+                detectarYSincronizarEntries();
+            }, 500);
+        }
     });
 
     document.addEventListener("keydown", (e) => {
@@ -387,6 +394,12 @@ document.addEventListener("DOMContentLoaded", () => {
             deshacerUndo();
         }
     });
+
+    document.addEventListener("input", function(e) {
+        if (e.target && e.target.classList && (e.target.classList.contains("entry-input") || e.target.classList.contains("entry-input-valor"))) {
+            marcarCambio();
+        }
+    }, true);
 
 });
 
@@ -1373,6 +1386,273 @@ function cargarInstrucciones() {
     ta.value = localStorage.getItem("promptIA") || "";
 }
 
+// ============================================================
+// v142 ASISTENTE IA: STREAMING + EDICIÓN + UNDO/REDO
+// ============================================================
+
+var iaHistorialOperaciones = [];
+var iaIndiceOperacion = -1;
+var iaStreamingActivo = false;
+
+function iaGuardarEstado() {
+    var editor = document.getElementById("editor");
+    if (!editor) return;
+    return editor.innerHTML;
+}
+
+function iaDeshacer() {
+    if (iaIndiceOperacion <= 0) return;
+    iaIndiceOperacion--;
+    var editor = document.getElementById("editor");
+    if (editor && iaHistorialOperaciones[iaIndiceOperacion]) {
+        editor.innerHTML = iaHistorialOperaciones[iaIndiceOperacion];
+        if (typeof detectarYSincronizarEntries === "function") {
+            detectarYSincronizarEntries();
+        }
+        marcarCambio();
+    }
+}
+
+function iaRehacer() {
+    if (iaIndiceOperacion >= iaHistorialOperaciones.length - 1) return;
+    iaIndiceOperacion++;
+    var editor = document.getElementById("editor");
+    if (editor && iaHistorialOperaciones[iaIndiceOperacion]) {
+        editor.innerHTML = iaHistorialOperaciones[iaIndiceOperacion];
+        if (typeof detectarYSincronizarEntries === "function") {
+            detectarYSincronizarEntries();
+        }
+        marcarCambio();
+    }
+}
+
+function iaRegistrarOperacion(htmlState) {
+    iaHistorialOperaciones = iaHistorialOperaciones.slice(0, iaIndiceOperacion + 1);
+    iaHistorialOperaciones.push(htmlState);
+    if (iaHistorialOperaciones.length > 50) {
+        iaHistorialOperaciones.shift();
+    } else {
+        iaIndiceOperacion++;
+    }
+}
+
+function iaSeleccionTexto() {
+    var sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return null;
+    var range = sel.getRangeAt(0);
+    var editor = document.getElementById("editor");
+    if (!editor || !editor.contains(range.commonAncestorContainer)) return null;
+    var texto = sel.toString().trim();
+    if (!texto) return null;
+    return { texto: texto, range: range.cloneRange() };
+}
+
+async function enviarChatStream() {
+    var input = document.getElementById("chatMensaje");
+    var msg = (input.value || "").trim();
+    if (!msg || iaStreamingActivo) return;
+
+    input.value = "";
+    agregarBurbujaChat("usuario", msg, true);
+
+    var seleccion = iaSeleccionTexto();
+
+    var payload = {
+        mensaje: msg,
+        historial: historialChat.slice(-20),
+        instrucciones: document.getElementById("promptIA")?.value || ""
+    };
+
+    if (seleccion) {
+        payload.mensaje = '[TEXTO SELECCIONADO: "' + seleccion.texto + '"]\n\n' + msg;
+    }
+
+    iaStreamingActivo = true;
+
+    var cont = document.getElementById("chatIA");
+    var div = document.createElement("div");
+    div.style.cssText = "margin:6px 0; padding:8px 10px; border-radius:8px; white-space:pre-wrap; word-break:break-word; font-size:13px; background:#ffffff; border:1px solid #e2e8f0;";
+    div.innerHTML = "🤖 <span class='ia-cursor'>▌</span>";
+    cont.appendChild(div);
+    cont.scrollTop = cont.scrollHeight;
+
+    var contenidoCompleto = "";
+
+    try {
+        var response = await fetch("/chat-ia-stream", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) throw new Error("Error en servidor: " + response.status);
+
+        var reader = response.body.getReader();
+        var decoder = new TextDecoder();
+        var buffer = "";
+
+        while (true) {
+            var { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            var lines = buffer.split("\n");
+            buffer = lines.pop() || "";
+
+            for (var i = 0; i < lines.length; i++) {
+                var line = lines[i].trim();
+                if (!line.startsWith("data: ")) continue;
+                var jsonStr = line.slice(6);
+                try {
+                    var parsed = JSON.parse(jsonStr);
+                    if (parsed.chunk) {
+                        contenidoCompleto += parsed.chunk;
+                        div.innerHTML = "🤖 " + escapeHTML(contenidoCompleto) + "<span class='ia-cursor'>▌</span>";
+                        cont.scrollTop = cont.scrollHeight;
+                    } else if (parsed.done) {
+                        div.innerHTML = "🤖 " + escapeHTML(contenidoCompleto);
+                        procesarAccionesIA(contenidoCompleto, seleccion, div, cont);
+                    } else if (parsed.error) {
+                        div.innerHTML = "❌ Error: " + escapeHTML(parsed.error);
+                    }
+                } catch (e) {}
+            }
+        }
+
+        if (contenidoCompleto && !div.querySelector(".ia-action-buttons")) {
+            historialChat.push({ rol: "ia", contenido: contenidoCompleto });
+            guardarChatLocal();
+        }
+
+    } catch (error) {
+        console.error("Error streaming:", error);
+        div.innerHTML = "❌ Error al conectar con la IA. <button onclick='enviarChatStream()' style='margin-left:8px;font-size:11px;'>Reintentar</button>";
+    }
+
+    iaStreamingActivo = false;
+    cont.scrollTop = cont.scrollHeight;
+}
+
+function procesarAccionesIA(respuesta, seleccion, divBubble, contChat) {
+    var editor = document.getElementById("editor");
+    if (!editor) return;
+
+    var esEdicion = seleccion && seleccion.texto;
+    var tieneAccion = /\b(REPLACE_TEXT|UPDATE_ENTRY|INSERT_TEXT|DELETE_TEXT)\b/i.test(respuesta);
+
+    if (esEdicion || tieneAccion) {
+        var textoSeleccion = seleccion ? seleccion.texto : "";
+        var textoOriginal = "";
+        var textoPropuesto = "";
+
+        var antesMatch = respuesta.match(/ANTES[:\s]*(.*?)(?=DESPUÉS|$)/si);
+        var despuesMatch = respuesta.match(/DESPUÉS[:\s]*(.*?)(?=\[APLICAR|$)/si);
+
+        if (antesMatch && despuesMatch) {
+            textoOriginal = antesMatch[1].trim();
+            textoPropuesto = despuesMatch[1].trim();
+        } else if (textoSeleccion) {
+            textoOriginal = textoSeleccion;
+            var cambioMatch = respuesta.match(/["""](.+?)["""].*?["""](.+?)["""']/s);
+            if (cambioMatch) {
+                textoPropuesto = textoSeleccion.replace(cambioMatch[1], cambioMatch[2]);
+            }
+        }
+
+        if (textoOriginal && textoPropuesto && textoOriginal !== textoPropuesto) {
+            var btnContainer = document.createElement("div");
+            btnContainer.className = "ia-action-buttons";
+            btnContainer.style.cssText = "display:flex; gap:8px; margin-top:8px;";
+
+            var btnAplicar = document.createElement("button");
+            btnAplicar.className = "btn btn-primary";
+            btnAplicar.style.cssText = "font-size:11px; padding:5px 10px; background:#2563eb;";
+            btnAplicar.textContent = "APLICAR";
+            btnAplicar.onclick = function() {
+                var estadoAntes = iaGuardarEstado();
+                var regex = textoOriginal.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+                var re = new RegExp(regex, "g");
+                if (re.test(editor.innerHTML)) {
+                    editor.innerHTML = editor.innerHTML.replace(re, function(match) {
+                        return '<span class="ia-texto-modificado" style="background:#dcfce7; padding:1px 2px; border-radius:2px;">' + textoPropuesto + '</span>';
+                    });
+                    iaRegistrarOperacion(estadoAntes);
+                    iaRegistrarOperacion(editor.innerHTML);
+                    if (typeof detectarYSincronizarEntries === "function") {
+                        detectarYSincronizarEntries();
+                    }
+                    marcarCambio();
+                    setTimeout(function() {
+                        document.querySelectorAll(".ia-texto-modificado").forEach(function(el) {
+                            el.style.background = "";
+                            el.style.padding = "";
+                            el.style.borderRadius = "";
+                            el.className = "";
+                        });
+                    }, 3000);
+                }
+                btnContainer.innerHTML = '<span style="color:#16a34a; font-size:11px; font-weight:600;">✅ Cambio aplicado</span>';
+                btnContainer.appendChild(document.createElement("br"));
+                var btnDeshacer = document.createElement("button");
+                btnDeshacer.style.cssText = "font-size:11px; padding:4px 8px; background:none; border:1px solid #d1d5db; border-radius:4px; cursor:pointer; margin-top:4px;";
+                btnDeshacer.textContent = "↶ Deshacer";
+                btnDeshacer.onclick = function() { iaDeshacer(); };
+                btnContainer.appendChild(btnDeshacer);
+            };
+
+            var btnCancelar = document.createElement("button");
+            btnCancelar.className = "btn btn-secundario";
+            btnCancelar.style.cssText = "font-size:11px; padding:5px 10px;";
+            btnCancelar.textContent = "CANCELAR";
+            btnCancelar.onclick = function() {
+                btnContainer.innerHTML = '<span style="color:#64748b; font-size:11px;">Cambio cancelado</span>';
+            };
+
+            btnContainer.appendChild(btnAplicar);
+            btnContainer.appendChild(btnCancelar);
+            divBubble.appendChild(btnContainer);
+        }
+    }
+
+    historialChat.push({ rol: "ia", contenido: respuesta });
+    guardarChatLocal();
+    contChat.scrollTop = contChat.scrollHeight;
+}
+
+var _iaSeleccionAnterior = "";
+
+function iaDetectarSeleccion() {
+    var sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+    var texto = sel.toString().trim();
+    if (texto && texto.length > 5 && texto !== _iaSeleccionAnterior) {
+        _iaSeleccionAnterior = texto;
+        var indicador = document.getElementById("iaSeleccionIndicator");
+        if (indicador) {
+            indicador.style.display = "block";
+            indicador.textContent = "📝 Texto seleccionado (" + texto.length + " caracteres) — escribe una instrucción en el chat";
+        }
+    } else if (!texto) {
+        _iaSeleccionAnterior = "";
+        var indicador = document.getElementById("iaSeleccionIndicator");
+        if (indicador) indicador.style.display = "none";
+    }
+}
+
+document.addEventListener("selectionchange", function() {
+    if (window._timerIaSeleccion) clearTimeout(window._timerIaSeleccion);
+    window._timerIaSeleccion = setTimeout(iaDetectarSeleccion, 300);
+});
+
+document.addEventListener("keydown", function(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
+        if (iaIndiceOperacion > 0) { e.preventDefault(); iaDeshacer(); }
+    }
+    if ((e.ctrlKey || e.metaKey) && (e.key === "y" || (e.shiftKey && e.key === "z"))) {
+        if (iaIndiceOperacion < iaHistorialOperaciones.length - 1) { e.preventDefault(); iaRehacer(); }
+    }
+});
+
 
 let resaltadoActivo = true;
 let textoOriginal = "";
@@ -1846,6 +2126,9 @@ function colorCampo(key) {
     for (const _b of _customBlocks) {
         const _e = (_b.entries || []).find(en => en.id === key || en.variable === key);
         if (_e && _e.color) return _e.color;
+    }
+    if (configuracionActual && configuracionActual.dynamicEntries && configuracionActual.dynamicEntries[key] && configuracionActual.dynamicEntries[key].color) {
+        return configuracionActual.dynamicEntries[key].color;
     }
     if (key === "actor" || key === "actor_2") return "#FFD54F";
     if (key === "nombre_demandado") return "#64B5F6";
@@ -2483,6 +2766,128 @@ async function descargarDocx() {
     }
 }
 
+var cambiosPendientes = 0;
+var ultimoTextoGuardado = "";
+
+function marcarCambio() {
+    if (!documentoBaseId) return;
+    cambiosPendientes++;
+    actualizarEstadoBotonGuardarCambios();
+}
+
+function limpiarCambioPendiente() {
+    cambiosPendientes = 0;
+    ultimoTextoGuardado = document.getElementById("editor").innerText;
+    actualizarEstadoBotonGuardarCambios();
+}
+
+function actualizarEstadoBotonGuardarCambios() {
+    var btn = document.getElementById("btnGuardarCambios");
+    var badge = document.getElementById("cambiosPendientesBadge");
+    var count = document.getElementById("cambiosPendientesCount");
+    if (!btn) return;
+
+    if (!documentoBaseId) {
+        btn.disabled = true;
+        btn.title = "Abra un documento base primero";
+        if (badge) badge.style.display = "none";
+        return;
+    }
+
+    if (cambiosPendientes > 0) {
+        btn.disabled = false;
+        btn.title = "Guardar cambios en el documento base";
+        if (badge) badge.style.display = "inline";
+        if (count) count.textContent = cambiosPendientes;
+    } else {
+        btn.disabled = true;
+        btn.title = "No hay cambios pendientes";
+        if (badge) badge.style.display = "none";
+    }
+}
+
+function guardarCambios() {
+    if (!documentoBaseId) {
+        alert("No hay documento base abierto.");
+        return;
+    }
+    var modal = document.getElementById("modalGuardarCambios");
+    var versionInfo = document.getElementById("guardarCambiosVersionInfo");
+    if (versionInfo) {
+        versionInfo.textContent = "Documento base: " + (archivoActual || documentoBaseId);
+    }
+    if (modal) {
+        modal.classList.add("abierto");
+    }
+}
+
+function rechazarGuardarCambios() {
+    var modal = document.getElementById("modalGuardarCambios");
+    if (modal) {
+        modal.classList.remove("abierto");
+    }
+}
+
+async function confirmarGuardarCambios() {
+    if (!documentoBaseId) {
+        alert("No hay documento base abierto.");
+        return;
+    }
+
+    var modal = document.getElementById("modalGuardarCambios");
+    if (modal) modal.classList.remove("abierto");
+
+    var modalEstado = document.getElementById("modalEstadoGuardado");
+    var icono = document.getElementById("estadoGuardadoIcono");
+    var mensaje = document.getElementById("estadoGuardadoMensaje");
+    var detalle = document.getElementById("estadoGuardadoDetalle");
+    var acciones = document.getElementById("estadoGuardadoAcciones");
+
+    if (modalEstado) modalEstado.classList.add("abierto");
+    if (icono) icono.textContent = "💾";
+    if (mensaje) mensaje.textContent = "Guardando cambios...";
+    if (detalle) detalle.textContent = "Generando documento y actualizando en Google Drive...";
+    if (acciones) acciones.style.display = "none";
+
+    try {
+        var textoPlano = document.getElementById("editor").innerText;
+
+        var resp = await fetch("/api/documentos-base/" + documentoBaseId + "/guardar-cambios", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ texto_plano: textoPlano })
+        });
+
+        if (!resp.ok) {
+            var err = await resp.json().catch(function() { return {}; });
+            throw new Error(err.detail || "Error al guardar cambios");
+        }
+
+        var result = await resp.json();
+
+        if (icono) icono.textContent = "✅";
+        if (mensaje) mensaje.textContent = "Cambios guardados correctamente.";
+        if (detalle) detalle.textContent = "Documento base actualizado. Version: " + result.version;
+        if (acciones) acciones.style.display = "block";
+
+        cambiosPendientes = 0;
+        ultimoTextoGuardado = textoPlano;
+        actualizarEstadoBotonGuardarCambios();
+
+    } catch (error) {
+        console.error("Error guardando cambios:", error);
+        if (icono) icono.textContent = "❌";
+        if (mensaje) mensaje.textContent = "No se pudieron guardar los cambios.";
+        if (detalle) detalle.textContent = error.message || "Error desconocido";
+        if (acciones) acciones.style.display = "block";
+    }
+}
+
+function cerrarEstadoGuardado() {
+    var modal = document.getElementById("modalEstadoGuardado");
+    if (modal) modal.classList.remove("abierto");
+}
+
 function generarDocumento() {
     const editor = document.getElementById("editor");
 
@@ -2578,6 +2983,30 @@ function rebuildPaginasDinamicas() {
         parent.insertBefore(div, lastFixed.nextSibling);
     });
 
+    var dynEntries = (configuracionActual && configuracionActual.dynamicEntries) || {};
+    var dynKeys = Object.keys(dynEntries);
+    if (dynKeys.length > 0) {
+        var dynDiv = document.createElement("div");
+        dynDiv.id = "pagina-dynamic-entries";
+        dynDiv.className = "pagina-entries pagina-custom-dinamica";
+        dynDiv.style.display = "none";
+        var dynInner = "<h4>VARIABLES DETECTADAS</h4>";
+        dynKeys.sort(function(a, b) {
+            return (dynEntries[a].order || 0) - (dynEntries[b].order || 0);
+        });
+        dynKeys.forEach(function(variable) {
+            var de = dynEntries[variable];
+            var dynBloque = de.bloque || "otros";
+            var dynLabel = de.nombre || nombreAmigableVariable(variable);
+            dynInner += '<div class="campo" data-dynamic-block="' + dynBloque + '">' +
+                '<button class="btn-rojo" data-key="' + variable + '" onmousedown="event.preventDefault()" style="background:' + (de.color || '#D1C4E9') + '"></button>' +
+                '<input id="' + variable + '" class="entry-input" placeholder="' + dynLabel + '">' +
+                '</div>';
+        });
+        dynDiv.innerHTML = dynInner;
+        parent.insertBefore(dynDiv, lastFixed.nextSibling);
+    }
+
     var orderedPags = configuracionActual && configuracionActual.blockOrder ? configuracionActual.blockOrder : [...PAGINAS_FIJAS];
     var customIds = customBlocks.map(b => b.id);
     orderedPags = orderedPags.filter(function(id) {
@@ -2585,6 +3014,9 @@ function rebuildPaginasDinamicas() {
         return EC_SYS_BLOCK_IDS.indexOf(id) !== -1 || customIds.indexOf(id) !== -1;
     });
     PAGINAS = orderedPags.concat(customIds.filter(id => orderedPags.indexOf(id) === -1));
+    if (dynKeys.length > 0 && PAGINAS.indexOf("dynamic-entries") === -1) {
+        PAGINAS.push("dynamic-entries");
+    }
 
     if (!PAGINAS.includes(modo)) {
         modo = PAGINAS[0];
@@ -2790,36 +3222,8 @@ async function abrirDocumentoBase(doc) {
                 console.log("[MEMORIA] Bloques personalizados restaurados:", filteredBlocks.length);
             }
         }
-        if (configGuardada && configGuardada.mapeo && Object.keys(configGuardada.mapeo).length > 0) {
-            mapeo = configGuardada.mapeo;
-            resaltados = configGuardada.resaltados || {};
-            tieneMapeoGuardado = true;
-            console.log("[MEMORIA] Configuración cargada desde Google Drive:", Object.keys(mapeo).length, "entradas");
-            console.log("[MEMORIA] Resaltados restaurados:", Object.keys(resaltados).length, "marcadores");
-            console.log("[MEMORIA] Restaurando Entries...");
-        } else {
-            console.log("[MEMORIA] No hay configuración guardada. Ejecutando detección dinámica...");
-            console.log("[MEMORIA] Documento ID:", doc.id);
-            console.log("[MEMORIA] Buscando configuración en Drive...");
-            console.log("[MEMORIA] Configuración no encontrada. Detectando marcadores...");
-            marcadores.forEach(m => {
-                const entryId = mapearVariableAEntrada(m.contenido);
-                if (entryId) {
-                    if (!mapeo[entryId]) mapeo[entryId] = [];
-                    var allOrig = m.allOriginals || [m.original];
-                    allOrig.forEach(function(orig) {
-                        if (mapeo[entryId].indexOf(orig) === -1) {
-                            mapeo[entryId].push(orig);
-                        }
-                    });
-                    allOrig.forEach(function(orig) { resaltados[orig] = true; });
-                }
-            });
-            console.log("[MEMORIA] Detección dinámica:", Object.keys(mapeo).length, "entradas");
-        }
-
         var savedMemoriaDocData = (configGuardada && configGuardada.memoriaDocData) || null;
-        configuracionActual = { marcadores, mapeo, resaltados, tieneMapeoGuardado, deletedCustomBlocks: (configGuardada && configGuardada.deletedCustomBlocks) || [], customBlocks: ecGetCustomBloques(), blockEntries: savedBlockEntries, blockOrder: savedBlockOrder, blockNames: (configGuardada && configGuardada.blockNames) || null };
+        configuracionActual = { marcadores, mapeo, resaltados, tieneMapeoGuardado, deletedCustomBlocks: (configGuardada && configGuardada.deletedCustomBlocks) || [], customBlocks: ecGetCustomBloques(), blockEntries: savedBlockEntries, blockOrder: savedBlockOrder, blockNames: (configGuardada && configGuardada.blockNames) || null, dynamicEntries: (configGuardada && configGuardada.dynamicEntries) || {} };
 
         if (savedMemoriaDocData && documentoId) {
             if (!memoriaDocs.documentos[documentoId]) {
@@ -2834,43 +3238,16 @@ async function abrirDocumentoBase(doc) {
             console.log("[MEMORIA] Valores de campos restaurados desde Drive:", Object.keys(savedMemoriaDocData.campos || {}).length, "campos");
         }
 
-        resaltarMarcadoresBase(mapeo, resaltados);
-        rebuildPaginasDinamicas();
-
-        var conteosEntradas = {};
-        marcadores.forEach(function(m) {
-            var entryId = mapearVariableAEntrada(m.contenido);
-            if (entryId) {
-                conteosEntradas[entryId] = (conteosEntradas[entryId] || 0) + (m.count || 1);
-            }
-        });
-
-        Object.keys(mapeo).forEach(entryId => {
-            const input = document.getElementById(entryId);
-            if (!input || input.value.trim()) return;
-            if (!mapeo[entryId] || mapeo[entryId].length === 0) return;
-            const marcador = mapeo[entryId][0];
-            if (resaltados && resaltados[marcador] === false) return;
-            input.value = marcador.replace(/^\[|\]$/g, '');
-        });
-
-        if (savedMemoriaDocData && savedMemoriaDocData.campos && documentoId) {
-            var camposGuardados = memoriaDocs.documentos[documentoId].campos || {};
-            Object.keys(camposGuardados).forEach(function(entryId) {
-                var input = document.getElementById(entryId);
-                if (input && camposGuardados[entryId] !== undefined && camposGuardados[entryId] !== null) {
-                    input.value = camposGuardados[entryId];
-                }
-            });
-            console.log("[MEMORIA] Valores de campos aplicados desde memoriaDocs");
-        }
-
-        marcarEntriesConVariables(mapeo, conteosEntradas);
+        detectarYSincronizarEntries();
 
         if (!tieneMapeoGuardado && Object.keys(mapeo).length > 0) {
             console.log("[MEMORIA] Guardando configuración inicial automáticamente...");
             await guardarConfiguracionEnDrive();
         }
+
+        cambiosPendientes = 0;
+        ultimoTextoGuardado = document.getElementById("editor").innerText;
+        actualizarEstadoBotonGuardarCambios();
 
         toggleRepositorio();
     } catch (e) {
@@ -2902,6 +3279,7 @@ async function guardarConfiguracionEnDrive() {
     const blockEntries = configuracionActual.blockEntries || {};
     const blockOrder = configuracionActual.blockOrder || null;
     const blockNames = configuracionActual.blockNames || null;
+    const dynamicEntries = configuracionActual.dynamicEntries || {};
     var memoriaDocData = null;
     if (documentoId && memoriaDocs.documentos && memoriaDocs.documentos[documentoId]) {
         memoriaDocData = memoriaDocs.documentos[documentoId];
@@ -2915,7 +3293,7 @@ async function guardarConfiguracionEnDrive() {
         const resp = await fetch(`/api/documentos-base/${documentoBaseId}/guardar-configuracion`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ mapeo, resaltados, customBlocks, deletedCustomBlocks, blockEntries, blockOrder, blockNames, memoriaDocData })
+            body: JSON.stringify({ mapeo, resaltados, customBlocks, deletedCustomBlocks, blockEntries, blockOrder, blockNames, dynamicEntries, memoriaDocData })
         });
 
         if (!resp.ok) {
@@ -3633,6 +4011,10 @@ function mapearVariableAEntrada(contenido) {
         if (match && match.entryId) return match.entryId;
     }
 
+    if (contenido && /^[A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ0-9_]*$/.test(contenido)) {
+        return contenido;
+    }
+
     return null;
 }
 
@@ -3643,10 +4025,15 @@ function resaltarMarcadoresBase(mapeo, resaltados) {
     let html = editor.innerHTML;
 
     const todasLasVariables = [];
+    const _procesadosRM = {};
     Object.keys(mapeo).forEach(entryId => {
-        mapeo[entryId].forEach(marcador => {
+        if (_procesadosRM[entryId]) return;
+        if (editor.querySelector('span[data-key="' + entryId + '"]')) return;
+        _procesadosRM[entryId] = true;
+        const marcador = mapeo[entryId][0];
+        if (marcador) {
             todasLasVariables.push({ entryId, marcador });
-        });
+        }
     });
 
     todasLasVariables.sort((a, b) => b.marcador.length - a.marcador.length);
@@ -3664,6 +4051,398 @@ function resaltarMarcadoresBase(mapeo, resaltados) {
     });
 
     editor.innerHTML = html;
+}
+
+// ============================================================
+// FUNCIÓN CENTRAL: REEMPLAZAR ENTRY EN DOCUMENTO
+// ============================================================
+
+function reemplazarEntryEnDocumento(key, value) {
+    var editor = document.getElementById("editor");
+    if (!editor) return;
+
+    var spans = editor.querySelectorAll('span[data-key="' + key + '"]');
+    if (spans.length === 0) return;
+
+    var textoAMostrar = value ? value : ("[" + key + "]");
+
+    spans.forEach(function(span) {
+        span.textContent = textoAMostrar;
+    });
+
+    if (configuracionActual && configuracionActual.dynamicEntries && configuracionActual.dynamicEntries[key]) {
+        configuracionActual.dynamicEntries[key].value = value || "";
+        configuracionActual.dynamicEntries[key].instances = spans.length;
+    }
+
+    var badge = document.querySelector('.entry-contador[data-variable="' + key + '"]');
+    if (badge) {
+        var nav = matchNavigationState[key];
+        var idx = nav ? ((nav.currentIndex % spans.length) + 1) : 1;
+        badge.textContent = idx + "/" + spans.length;
+        badge.title = idx + " de " + spans.length + " coincidencias";
+    }
+
+    marcarCambio();
+    programarGuardadoConfiguracion();
+}
+
+// ============================================================
+// DETECCIÓN: ENTRIES VINCULADAS (span[data-key] en editor)
+// ============================================================
+
+function detectarEntriesVinculadas() {
+    var editor = document.getElementById("editor");
+    if (!editor) return {};
+    var vinculadas = {};
+    var spans = editor.querySelectorAll('span[data-key]');
+    spans.forEach(function(span) {
+        var key = span.getAttribute("data-key");
+        if (!key) return;
+        if (!vinculadas[key]) {
+            vinculadas[key] = { variable: key, count: 0, instances: [] };
+        }
+        vinculadas[key].count++;
+        vinculadas[key].instances.push(span.textContent);
+    });
+    return vinculadas;
+}
+
+// ============================================================
+// APLICAR VALORES GUARDADOS A SPANS
+// ============================================================
+
+function aplicarValoresGuardadosEnSpans() {
+    if (!configuracionActual || !configuracionActual.dynamicEntries) return;
+    var editor = document.getElementById("editor");
+    if (!editor) return;
+
+    Object.keys(configuracionActual.dynamicEntries).forEach(function(key) {
+        var entry = configuracionActual.dynamicEntries[key];
+        if (!entry.value) return;
+
+        var spans = editor.querySelectorAll('span[data-key="' + key + '"]');
+        if (spans.length === 0) {
+            var html = editor.innerHTML;
+            var placeholder = "[" + key + "]";
+            var esc = placeholder.replace(/[-\/\\^$*+?.()|[\]{}%]/g, '\\$&');
+            var regex = new RegExp(esc, "g");
+            var c = 0;
+            html = html.replace(regex, function() {
+                c++;
+                var color = entry.color || "#D1C4E9";
+                return '<span class="jurisflow-entry" data-key="' + key + '" data-instance-id="' + key + '_saved_' + c + '" style="background:' + color + '; padding:1px 2px; border-radius:2px; cursor:pointer;" title="' + key + '">' + entry.value + '</span>';
+            });
+            if (c > 0) {
+                editor.innerHTML = html;
+                entry.instances = c;
+            }
+            return;
+        }
+
+        spans.forEach(function(span) {
+            if (span.textContent !== entry.value) {
+                span.textContent = entry.value;
+            }
+        });
+        entry.instances = spans.length;
+    });
+}
+
+// ============================================================
+// DETECCIÓN NATIVA DE PLACEHOLDERS
+// ============================================================
+
+var PLACEHOLDER_REGEX = /\[([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ0-9_]*)\]/g;
+
+function detectarPlaceholdersDelDocumento() {
+    var editor = document.getElementById("editor");
+    if (!editor) return {};
+    var texto = editor.innerText || editor.textContent || "";
+    var porVariable = {};
+    var match;
+    PLACEHOLDER_REGEX.lastIndex = 0;
+    while ((match = PLACEHOLDER_REGEX.exec(texto)) !== null) {
+        var variable = match[1];
+        if (!porVariable[variable]) {
+            porVariable[variable] = { variable: variable, count: 0, instances: [] };
+        }
+        porVariable[variable].count++;
+        porVariable[variable].instances.push(match[0]);
+    }
+    return porVariable;
+}
+
+function nombreAmigableVariable(variable) {
+    return variable
+        .replace(/_/g, " ")
+        .toLowerCase()
+        .replace(/\b\w/g, function(c) { return c.toUpperCase(); });
+}
+
+function obtenerBloqueParaVariable(variable) {
+    var v = variable.toUpperCase();
+    if (/_ACTOR_1(?!\d)/.test(v) || v === "NOMBRE_ACTOR_1") return "actor1";
+    if (/_ACTOR_2(?!\d)/.test(v) || v === "NOMBRE_ACTOR_2") return "actor2";
+    if (/DEMANDADO/.test(v)) return "demandado";
+    if (/TESTIGO/.test(v)) return "testigos";
+    if (/HECHO/.test(v)) return "hechos";
+    if (/EXCEPCION/.test(v)) return "excepciones";
+    if (/PRETENSION/.test(v)) return "pretensiones";
+    if (/FUNDAMENTO/.test(v)) return "fundamentos";
+    if (/NORMA|ARTICULO/.test(v)) return "fundamentos";
+    if (/PRUEBA|PERITO|INSPECCION/.test(v)) return "pruebas";
+    if (/PRONUNCIAMIENTO/.test(v)) return "pronunciamiento";
+    if (/ABOGADO|MATRICULA|DEFENSOR|APODERADO/.test(v)) return "otros";
+    if (/PROCURADOR/.test(v)) return "otros";
+    if (/(?:SALARIO|INGRESO|EGRESO|GASTO|CONTRATO|IESS|CARGA|HIJOS|DANO|INTERES)/.test(v)) return "laboral";
+    if (/(?:CORREO|CASILLERO|NOTIFICAC)/.test(v)) return "notificaciones";
+    if (/(?:JUZGADO|SALA|CIUDAD|CANTON|PROVINCIA|EXPEDIENTE|CUANTIA|ACCION|MATERIA|PROCEDIMIENTO)/.test(v)) return "proceso";
+    return "otros";
+}
+
+var _colorIdxDinamico = 0;
+function asignarColorDinamico(variable) {
+    if (configuracionActual && configuracionActual.dynamicEntries && configuracionActual.dynamicEntries[variable]) {
+        return configuracionActual.dynamicEntries[variable].color;
+    }
+    var color = EC_COLOR_PALETTE[_colorIdxDinamico % EC_COLOR_PALETTE.length];
+    _colorIdxDinamico++;
+    return color;
+}
+
+function sincronizarEntriesConDocumento(placeholdersDetectados, conteosEntradas) {
+    if (!configuracionActual) return;
+    if (!configuracionActual.dynamicEntries) configuracionActual.dynamicEntries = {};
+
+    var existingKeys = {};
+    document.querySelectorAll(".entry-input").forEach(function(inp) { existingKeys[inp.id] = true; });
+
+    Object.keys(placeholdersDetectados).forEach(function(variable) {
+        if (existingKeys[variable]) return;
+        if (configuracionActual.dynamicEntries[variable]) {
+            configuracionActual.dynamicEntries[variable].instances = placeholdersDetectados[variable].count;
+            return;
+        }
+        configuracionActual.dynamicEntries[variable] = {
+            variable: variable,
+            nombre: nombreAmigableVariable(variable),
+            color: asignarColorDinamico(variable),
+            bloque: obtenerBloqueParaVariable(variable),
+            instances: placeholdersDetectados[variable].count,
+            order: Object.keys(configuracionActual.dynamicEntries).length
+        };
+        console.log("[DETECCION] Entry dinámico creado:", variable, "→", configuracionActual.dynamicEntries[variable].bloque);
+    });
+}
+
+// ============================================================
+// v142: SISTEMA DE ENTRIES SIMPLIFICADO
+// ============================================================
+
+function detectarYSincronizarEntries() {
+    if (!documentoBaseId) return;
+
+    var placeholders = detectarPlaceholdersDelDocumento();
+    var vinculadas = detectarEntriesVinculadas();
+    var container = document.getElementById("v142EntriesContainer");
+    if (!container) return;
+
+    if (!configuracionActual) configuracionActual = {};
+    if (!configuracionActual.dynamicEntries) configuracionActual.dynamicEntries = {};
+
+    var variablesUnificadas = {};
+
+    Object.keys(placeholders).forEach(function(v) {
+        variablesUnificadas[v] = {
+            variable: v,
+            count: placeholders[v].count,
+            instances: placeholders[v].instances,
+            fromText: true
+        };
+    });
+
+    Object.keys(vinculadas).forEach(function(v) {
+        if (!variablesUnificadas[v]) {
+            variablesUnificadas[v] = {
+                variable: v,
+                count: vinculadas[v].count,
+                instances: vinculadas[v].instances,
+                fromSpans: true
+            };
+        } else {
+            variablesUnificadas[v].fromSpans = true;
+        }
+    });
+
+    Object.keys(configuracionActual.dynamicEntries).forEach(function(v) {
+        if (!variablesUnificadas[v]) {
+            var entry = configuracionActual.dynamicEntries[v];
+            if (entry && entry.value && entry.placeholder) {
+                variablesUnificadas[v] = {
+                    variable: v,
+                    count: 0,
+                    instances: [],
+                    fromConfig: true
+                };
+            } else {
+                delete configuracionActual.dynamicEntries[v];
+            }
+        }
+    });
+
+    var variablesDetectadas = Object.keys(variablesUnificadas);
+
+    variablesDetectadas.forEach(function(variable) {
+        if (!configuracionActual.dynamicEntries[variable]) {
+            configuracionActual.dynamicEntries[variable] = {
+                variable: variable,
+                nombre: nombreAmigableVariable(variable),
+                color: asignarColorDinamico(variable),
+                instances: variablesUnificadas[variable].count,
+                order: Object.keys(configuracionActual.dynamicEntries).length,
+                value: "",
+                placeholder: "[" + variable + "]"
+            };
+        } else {
+            configuracionActual.dynamicEntries[variable].instances = variablesUnificadas[variable].count;
+            if (!configuracionActual.dynamicEntries[variable].nombre) {
+                configuracionActual.dynamicEntries[variable].nombre = nombreAmigableVariable(variable);
+            }
+            if (!configuracionActual.dynamicEntries[variable].color) {
+                configuracionActual.dynamicEntries[variable].color = asignarColorDinamico(variable);
+            }
+            if (!configuracionActual.dynamicEntries[variable].placeholder) {
+                configuracionActual.dynamicEntries[variable].placeholder = "[" + variable + "]";
+            }
+        }
+    });
+
+    var mapeo = {};
+    variablesDetectadas.forEach(function(variable) {
+        mapeo[variable] = [];
+        var count = variablesUnificadas[variable].count || 1;
+        for (var i = 0; i < count; i++) {
+            mapeo[variable].push("[" + variable + "]");
+        }
+    });
+
+    construirListaEntriesPlana(variablesDetectadas, variablesUnificadas, mapeo);
+    resaltarMarcadoresBase(mapeo, {});
+    aplicarValoresGuardadosEnSpans();
+    actualizarEstadoBotonGuardarCambios();
+}
+
+function construirListaEntriesPlana(variables, placeholders, mapeo) {
+    var container = document.getElementById("v142EntriesContainer");
+    if (!container) return;
+
+    if (!variables || variables.length === 0) {
+        container.innerHTML = '<p class="v142-empty">No se detectaron placeholders [VARIABLE] en el documento.</p>';
+        return;
+    }
+
+    variables.sort(function(a, b) {
+        var orderA = configuracionActual.dynamicEntries[a] ? configuracionActual.dynamicEntries[a].order : 999;
+        var orderB = configuracionActual.dynamicEntries[b] ? configuracionActual.dynamicEntries[b].order : 999;
+        return orderA - orderB;
+    });
+
+    var html = '<div class="v142-seccion-titulo">ENTRIES (' + variables.length + ')</div>';
+
+    variables.forEach(function(variable) {
+        var de = configuracionActual.dynamicEntries[variable];
+        var color = de ? de.color : "#D1C4E9";
+        var nombre = de ? de.nombre : nombreAmigableVariable(variable);
+        var count = placeholders[variable] ? placeholders[variable].count : 0;
+        var value = de ? (de.value || "") : "";
+
+        if (!matchNavigationState[variable]) {
+            matchNavigationState[variable] = { currentIndex: 0 };
+        }
+        var nav = matchNavigationState[variable];
+        var displayIndex = (count > 0) ? ((nav.currentIndex % count) + 1) : 0;
+
+        html += '<div class="entry-item" data-variable="' + variable + '">' +
+            '<span class="entry-dot" style="background:' + color + '"></span>' +
+            '<span class="entry-nombre" title="' + variable + '">' + nombre + '</span>' +
+            '<input class="entry-input-valor" data-variable="' + variable + '" placeholder="Valor..." value="' + value.replace(/"/g, '&quot;') + '">' +
+            '<span class="entry-contador" data-variable="' + variable + '" style="background:' + color + '" title="' + displayIndex + ' de ' + count + ' coincidencias">' +
+            displayIndex + '/' + count +
+            '</span>' +
+            '</div>';
+    });
+
+    container.innerHTML = html;
+
+    container.querySelectorAll(".entry-contador").forEach(function(badge) {
+        badge.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            var v = badge.getAttribute("data-variable");
+            navegarContador(v);
+        };
+    });
+
+    container.querySelectorAll(".entry-nombre").forEach(function(nombreEl) {
+        nombreEl.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            var item = nombreEl.closest(".entry-item");
+            if (!item) return;
+            var v = item.getAttribute("data-variable");
+            if (!v) return;
+            if (matchNavigationState[v]) {
+                matchNavigationState[v].currentIndex = -1;
+            }
+            navegarContador(v);
+        };
+    });
+
+    container.querySelectorAll(".entry-input-valor").forEach(function(input) {
+        input.oninput = function() {
+            var v = input.getAttribute("data-variable");
+            reemplazarEntryEnDocumento(v, input.value);
+        };
+    });
+}
+
+function navegarContador(variable) {
+    var editor = document.getElementById("editor");
+    if (!editor) return;
+    var spans = editor.querySelectorAll('span[data-key="' + variable + '"]');
+    if (spans.length === 0) return;
+
+    if (!matchNavigationState[variable]) matchNavigationState[variable] = { currentIndex: 0 };
+    var nav = matchNavigationState[variable];
+
+    document.querySelectorAll('.match-highlight-current').forEach(function(el) {
+        el.style.outline = "";
+        el.style.outlineOffset = "";
+        el.style.boxShadow = "";
+        el.classList.remove("match-highlight-current");
+    });
+
+    nav.currentIndex = (nav.currentIndex + 1) % spans.length;
+    var currentSpan = spans[nav.currentIndex];
+    currentSpan.scrollIntoView({ behavior: "smooth", block: "center" });
+    currentSpan.style.outline = "3px solid #FF6B6B";
+    currentSpan.style.outlineOffset = "2px";
+    currentSpan.style.boxShadow = "0 0 8px rgba(255,107,107,0.6)";
+    currentSpan.classList.add("match-highlight-current");
+    setTimeout(function() {
+        currentSpan.style.outline = "";
+        currentSpan.style.outlineOffset = "";
+        currentSpan.style.boxShadow = "";
+        currentSpan.classList.remove("match-highlight-current");
+    }, 2000);
+
+    var badge = document.querySelector('.entry-contador[data-variable="' + variable + '"]');
+    if (badge) {
+        var displayIndex = nav.currentIndex + 1;
+        badge.textContent = displayIndex + "/" + spans.length;
+        badge.title = displayIndex + " de " + spans.length + " coincidencias";
+    }
 }
 
 function marcarEntriesConVariables(mapeo, conteos) {

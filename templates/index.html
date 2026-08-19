@@ -105,6 +105,29 @@
             color: #fff;
         }
 
+        .btn-guardar-cambios {
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            color: #fff;
+            font-weight: 600;
+            padding: 7px 16px;
+            font-size: 12px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            transition: all .2s;
+            box-shadow: 0 2px 4px rgba(37,99,235,.25);
+        }
+        .btn-guardar-cambios:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(37,99,235,.35);
+        }
+        .btn-guardar-cambios:disabled {
+            background: #94a3b8;
+            cursor: not-allowed;
+            opacity: .55;
+            box-shadow: none;
+        }
+
         /* ===== SUBIDA ===== */
         .subida {
             padding: 14px 28px;
@@ -207,6 +230,105 @@
             background: #fff;
         }
         .campo input::placeholder { color: #94a3b8; }
+
+        /* ===== FLAT ENTRY LIST (v142) ===== */
+        .v142-hidden { display: none !important; }
+        #contenedorEntriesFijos .pagina-entries { display: none !important; }
+        #contenedorEntriesFijos .legend { display: none !important; }
+        #contenedorEntriesFijos .campo { display: none !important; }
+        #listaEntriesPlana { display: block !important; }
+        #listaEntriesPlana { padding: 10px 16px; }
+        #listaEntriesPlana .entry-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background .15s;
+            margin-bottom: 2px;
+        }
+        #listaEntriesPlana .entry-item:hover { background: #f1f5f9; }
+        #listaEntriesPlana .entry-item .entry-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            border: 1px solid rgba(0,0,0,.15);
+        }
+        #listaEntriesPlana .entry-item .entry-nombre {
+            flex: 1;
+            font-size: 13px;
+            color: #1e293b;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        #listaEntriesPlana .entry-item .entry-contador {
+            min-width: 22px;
+            height: 18px;
+            border-radius: 9px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: 700;
+            color: #000;
+            padding: 0 5px;
+            cursor: pointer;
+            border: 1px solid rgba(0,0,0,.2);
+            transition: transform .15s;
+            flex-shrink: 0;
+        }
+        #listaEntriesPlana .entry-item .entry-contador:hover { transform: scale(1.15); }
+        #listaEntriesPlana .v142-empty {
+            color: #94a3b8;
+            font-size: 12px;
+            padding: 16px 0;
+            text-align: center;
+        }
+        #listaEntriesPlana .v142-seccion-titulo {
+            font-size: 11px;
+            font-weight: 700;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: .5px;
+            padding: 10px 0 6px;
+            border-bottom: 1px solid #f1f5f9;
+            margin-bottom: 4px;
+        }
+        #listaEntriesPlana .entry-item .entry-input-valor {
+            width: 120px;
+            font-size: 11px;
+            padding: 3px 6px;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            background: #f8fafc;
+            color: #334155;
+        }
+        #listaEntriesPlana .entry-item .entry-input-valor:focus {
+            outline: none;
+            border-color: #3b82f6;
+            background: #fff;
+        }
+
+        /* ===== IA STREAMING CURSOR ===== */
+        .ia-cursor {
+            display: inline;
+            animation: iaCursorBlink 0.8s step-end infinite;
+            color: #3b82f6;
+            font-weight: 700;
+        }
+        @keyframes iaCursorBlink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+        .ia-action-buttons {
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid #f1f5f9;
+        }
 
         /* ===== LEYENDA DE COLORES ===== */
         .legend {
@@ -718,6 +840,9 @@
         <div id="editor" contenteditable="true"></div>
         <div class="barra-acciones">
             <button class="btn btn-primary" onclick="descargarDocx()">Guardar DOCX</button>
+            <div style="flex:1"></div>
+            <span id="cambiosPendientesBadge" style="display:none; font-size:11px; color:#b45309; margin-right:8px;">CAMBIOS PENDIENTES: <b id="cambiosPendientesCount">0</b></span>
+            <button id="btnGuardarCambios" class="btn btn-guardar-cambios" onclick="guardarCambios()" disabled>💾 GUARDAR CAMBIOS</button>
         </div>
     </div>
 
@@ -1709,8 +1834,17 @@
 
     </div> <!-- fin contenedorEntriesFijos -->
 
+        <!-- v142: FLAT ENTRY LIST -->
+        <div id="listaEntriesPlana">
+            <div class="v142-seccion-titulo">ENTRIES</div>
+            <div id="v142EntriesContainer">
+                <p class="v142-empty">Abra un documento base para detectar entries.</p>
+            </div>
+        </div>
+        <!-- fin v142 -->
+
         <!-- BOTONES DE NAVEGACION -->
-        <div class="barra-acciones">
+        <div class="barra-acciones v142-hidden">
             <div class="nav-der">
                 <button class="btn btn-nav" onclick="anterior()">⬅ Anterior</button>
                 <button class="btn btn-nav" onclick="siguiente()">Siguiente ➡</button>
@@ -1721,6 +1855,43 @@
 
 </div>
 
+<!-- MODAL CONFIRMAR GUARDAR CAMBIOS -->
+<div id="modalGuardarCambios" class="modal-overlay" onclick="if(event.target===this)rechazarGuardarCambios()">
+    <div class="ec-card" style="max-width:480px; margin:auto; margin-top:15vh;">
+        <div style="padding:20px 24px; border-bottom:1px solid #e5e7eb;">
+            <b style="font-size:16px; color:#1e293b;">⚠️ Guardar cambios</b>
+        </div>
+        <div style="padding:20px 24px; font-size:14px; color:#334155; line-height:1.6;">
+            <p>¿Estás seguro de que deseas actualizar este documento base?</p>
+            <p style="font-size:13px; color:#64748b; margin-top:10px;">
+                Esta acción guardará los cambios actuales en el archivo utilizado como plantilla.
+            </p>
+            <p style="font-size:13px; color:#64748b; margin-top:8px;">
+                Los cambios pueden incluir: texto, entries, placeholders, bloques, valores, estructura del documento.
+            </p>
+            <p id="guardarCambiosVersionInfo" style="font-size:12px; color:#94a3b8; margin-top:10px;"></p>
+        </div>
+        <div style="padding:16px 24px; display:flex; gap:10px; justify-content:flex-end; border-top:1px solid #e5e7eb;">
+            <button onclick="rechazarGuardarCambios()" class="btn btn-secundario">RECHAZAR</button>
+            <button id="btnConfirmarGuardarCambios" onclick="confirmarGuardarCambios()" class="btn btn-primary" style="background:#2563eb;">SI, GUARDAR CAMBIOS</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL ESTADO GUARDADO -->
+<div id="modalEstadoGuardado" class="modal-overlay" onclick="if(event.target===this)cerrarEstadoGuardado()">
+    <div class="ec-card" style="max-width:420px; margin:auto; margin-top:20vh;">
+        <div style="padding:24px; text-align:center;">
+            <div id="estadoGuardadoIcono" style="font-size:36px; margin-bottom:12px;">💾</div>
+            <div id="estadoGuardadoMensaje" style="font-size:15px; color:#1e293b; font-weight:600;">Guardando cambios...</div>
+            <div id="estadoGuardadoDetalle" style="font-size:13px; color:#64748b; margin-top:8px;"></div>
+        </div>
+        <div id="estadoGuardadoAcciones" style="padding:12px 24px 20px; text-align:center; display:none;">
+            <button onclick="cerrarEstadoGuardado()" class="btn btn-primary">CERRAR</button>
+        </div>
+    </div>
+</div>
+
 <script src="/static/variables_maestro.js?v=3"></script>
 <script src="/static/script.js?v=142"></script>
 
@@ -1728,26 +1899,32 @@
 <!-- CONFIG -->
 <div id="configPanel">
 
-<h3 style="font-size:18px; font-weight:700; color:#1e293b; margin-bottom:4px;">Configurar IA</h3>
+<h3 style="font-size:18px; font-weight:700; color:#1e293b; margin-bottom:4px;">🤖 Asistente IA</h3>
 
 <p style="font-size:12px; color:#555; margin-top:2px;">
-    🔒 El prompt principal está <b>protegido en el servidor</b> y no se puede
-    modificar desde aquí. En este chat puedes hablar con la IA y aplicar sus
-    correcciones a los análisis de documentos.
+    Selecciona texto en el documento y escribe una instrucción para editar.
+    La IA responde en tiempo real.
 </p>
 
-<div id="chatIA" style="height:220px; overflow-y:auto; border:1px solid #d1d5db; border-radius:6px; padding:10px; margin-bottom:10px; background:#f8fafc; font-size:13px;">
+<div id="iaSeleccionIndicator" style="display:none; background:#eff6ff; border:1px solid #bfdbfe; border-radius:6px; padding:6px 10px; margin-bottom:8px; font-size:11px; color:#1e40af;"></div>
+
+<div id="chatIA" style="height:260px; overflow-y:auto; border:1px solid #d1d5db; border-radius:6px; padding:10px; margin-bottom:10px; background:#f8fafc; font-size:13px;">
 </div>
 
-<div style="display:flex; gap:8px; margin-bottom:14px;">
-    <input id="chatMensaje" placeholder="Escribe a la IA... (Enter para enviar)"
+<div style="display:flex; gap:6px; margin-bottom:10px;">
+    <input id="chatMensaje" placeholder="Escribe una instrucción... (Enter para enviar)"
            style="flex:1; border:1px solid #d1d5db; border-radius:6px; padding:10px; font-size:13px;"
-           onkeydown="if(event.key==='Enter'){event.preventDefault();enviarChat();}">
-    <button class="btn btn-primary" onclick="enviarChat()">Enviar</button>
+           onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();enviarChatStream();}">
+    <button class="btn btn-primary" onclick="enviarChatStream()" id="btnEnviarChat">Enviar</button>
+</div>
+
+<div style="display:flex; gap:6px; margin-bottom:14px;">
+    <button onclick="iaDeshacer()" style="font-size:11px; padding:4px 8px; background:none; border:1px solid #d1d5db; border-radius:4px; cursor:pointer;" title="Deshacer (Ctrl+Z)">↶ Deshacer</button>
+    <button onclick="iaRehacer()" style="font-size:11px; padding:4px 8px; background:none; border:1px solid #d1d5db; border-radius:4px; cursor:pointer;" title="Rehacer (Ctrl+Y)">↷ Rehacer</button>
 </div>
 
 <label style="font-size:13px; font-weight:600; display:block; margin-bottom:6px;">
-    Instrucciones adicionales (se suman al prompt principal al analizar)
+    Instrucciones adicionales
 </label>
 <textarea id="promptIA" placeholder="Ej.: En demandas de alimentos, el demandado suele ser el padre..."></textarea>
 

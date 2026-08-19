@@ -274,6 +274,33 @@ def chat_ia(data: dict = Body(...)):
     return {"respuesta": respuesta}
 
 
+@app.post("/chat-ia-stream")
+async def chat_ia_stream(data: dict = Body(...)):
+
+    from fastapi.responses import StreamingResponse
+    from ia import chatear_con_ia_streaming
+
+    mensaje = data.get("mensaje", "")
+    historial = data.get("historial", [])
+    instrucciones = data.get("instrucciones", "")
+
+    if not mensaje or not mensaje.strip():
+        raise HTTPException(status_code=400, detail="Mensaje vacío")
+
+    if not isinstance(historial, list):
+        historial = []
+
+    def event_generator():
+        for chunk in chatear_con_ia_streaming(mensaje.strip(), historial, instrucciones):
+            yield f"data: {chunk}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+    )
+
+
 @app.post("/reanalizar")
 def reanalizar(data: dict = Body(...)):
 
@@ -753,6 +780,7 @@ def guardar_configuracion_documento_base_endpoint(doc_id: str, data: dict = Body
     blockOrder = data.get("blockOrder", None)
     blockNames = data.get("blockNames", None)
     memoriaDocData = data.get("memoriaDocData", None)
+    dynamicEntries = data.get("dynamicEntries", {})
     config = {
         "mapeo": mapeo,
         "resaltados": resaltados,
@@ -762,6 +790,7 @@ def guardar_configuracion_documento_base_endpoint(doc_id: str, data: dict = Body
         "blockOrder": blockOrder,
         "blockNames": blockNames,
         "memoriaDocData": memoriaDocData,
+        "dynamicEntries": dynamicEntries,
         "fecha_configuracion": datetime.datetime.now().isoformat(),
         "config_version": 2,
     }
@@ -812,6 +841,97 @@ def reanalizar_documento_base_endpoint(doc_id: str):
     guardar_config_documento_base(service, doc_id, config)
     print(f"🔄 REANALIZADO: {doc_id} ({len(variables)} variables)")
     return {"ok": True, "config": config}
+
+
+@app.post("/api/documentos-base/{doc_id}/guardar-cambios")
+async def guardar_cambios_documento_base_endpoint(doc_id: str, data: dict = Body(...)):
+    from drive import (
+        leer_registro_documentos_base,
+        guardar_registro_documentos_base,
+        subir_documento_base,
+        guardar_datos_documento_base,
+        guardar_config_documento_base,
+        leer_config_documento_base,
+        leer_datos_documento_base,
+        obtener_carpeta_archivos_base,
+        obtener_o_crear_carpeta,
+        subir_o_actualizar_json,
+    )
+    from ia import detectar_variables
+
+    texto_plano = data.get("texto_plano", "")
+    if not texto_plano.strip():
+        raise HTTPException(status_code=400, detail="No se proporcionó texto para guardar")
+
+    service = get_service()
+    registro = leer_registro_documentos_base(service)
+    documentos = registro.get("documentos", [])
+
+    doc_meta = None
+    for doc in documentos:
+        if doc["id"] == doc_id:
+            doc_meta = doc
+            break
+
+    if not doc_meta:
+        raise HTTPException(status_code=404, detail="Documento base no encontrado")
+
+    try:
+        docx_doc = Document()
+        for linea in texto_plano.split("\n"):
+            docx_doc.add_paragraph(linea)
+        import io
+        buf = io.BytesIO()
+        docx_doc.save(buf)
+        file_bytes = buf.getvalue()
+        if len(file_bytes) < 100:
+            raise Exception("DOCX generado demasiado pequeño")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generando DOCX: {str(e)}")
+
+    current_version = doc_meta.get("version", 1)
+    try:
+        carpeta_base = obtener_carpeta_archivos_base(service)
+        carpeta_doc = obtener_o_crear_carpeta(service, doc_id, carpeta_base)
+        existing_datos = leer_datos_documento_base(service, doc_id)
+        if existing_datos:
+            version_filename = f"datos.json_v{current_version}"
+            subir_o_actualizar_json(service, carpeta_doc, version_filename, existing_datos)
+            print(f"📦 Versión anterior guardada: {version_filename}")
+    except Exception as e:
+        print(f"⚠️ Error guardando versión anterior: {e}")
+
+    archivo_nombre = doc_meta.get("archivo_nombre", f"documento_{doc_id}.docx")
+    subir_documento_base(service, doc_id, file_bytes, archivo_nombre)
+
+    guardar_datos_documento_base(service, doc_id, {
+        "texto": texto_plano,
+        "texto_original": texto_plano,
+        "prompt_usado": "",
+        "prompt_version": PROMPT_VERSION,
+    })
+
+    try:
+        variables = detectar_variables(texto_plano)
+        existing_config = leer_config_documento_base(service, doc_id) or {}
+        config = dict(existing_config)
+        config["variables"] = variables if variables else []
+        config["fecha_configuracion"] = datetime.datetime.now().isoformat()
+        config["config_version"] = max(config.get("config_version", 1), 2)
+        guardar_config_documento_base(service, doc_id, config)
+    except Exception as e:
+        print(f"⚠️ Error re-detectando variables: {e}")
+
+    new_version = current_version + 1
+    for doc in documentos:
+        if doc["id"] == doc_id:
+            doc["version"] = new_version
+            doc["fecha_modificacion"] = datetime.datetime.now().isoformat()
+            break
+    guardar_registro_documentos_base(service, registro)
+
+    print(f"✅ CAMBIOS GUARDADOS: {doc_id} (v{current_version} → v{new_version})")
+    return {"ok": True, "version": new_version, "anterior_version": current_version}
 
 
 @app.post("/api/documentos-base/seed")
