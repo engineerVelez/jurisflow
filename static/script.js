@@ -2808,41 +2808,95 @@ async function descargarDocx() {
         }
 
         const blob = await response.blob();
+        const nombreArchivo = generarNombreArchivo();
+
+        if (window.showSaveFilePicker) {
+            try {
+                const handle = await window.showSaveFilePicker({
+                    suggestedName: nombreArchivo,
+                    types: [{
+                        description: "Documento Word",
+                        accept: { "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"] }
+                    }]
+                });
+                const writable = await handle.createWritable();
+                await writable.write(blob);
+                await writable.close();
+                return;
+            } catch (e) {
+                if (e.name === "AbortError") return;
+            }
+        }
 
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        const nombre = document.getElementById("actor")?.value || "";
-        const tipo = document.getElementById("tipo_juicio")?.value || "";
-
-        function limpiar(texto) {
-            return texto
-                .trim()
-                .replace(/\s+/g, "_")
-                .replace(/[^\w\-]/g, "");
-        }
-
-        let nombreArchivo = "";
-
-        if (nombre && tipo) {
-            nombreArchivo = `${limpiar(nombre)}_${limpiar(tipo)}.docx`;
-        } else if (nombre) {
-            nombreArchivo = `${limpiar(nombre)}.docx`;
-        } else if (tipo) {
-            nombreArchivo = `${limpiar(tipo)}.docx`;
-        } else {
-            nombreArchivo = "documento.docx";
-        }
-
         a.download = nombreArchivo;
         document.body.appendChild(a);
         a.click();
         a.remove();
+        window.URL.revokeObjectURL(url);
 
     } catch (error) {
         console.error("Error:", error);
         alert("Error al descargar DOCX");
     }
+}
+
+function generarNombreArchivo() {
+    const prioridades = [
+        "NOMBRE_ACTOR_1", "NOMBRE_DEMANDANTE_1", "NOMBRE_DENUNCIANTE_1",
+        "NOMBRE_VICTIMA_1", "NOMBRE_PERSONA", "NOMBRE_CLIENTE"
+    ];
+    let nombrePersona = "";
+    const entries = (configuracionActual && configuracionActual.dynamicEntries) || {};
+    for (let i = 0; i < prioridades.length; i++) {
+        const key = prioridades[i];
+        if (entries[key] && entries[key].value && entries[key].value.trim()) {
+            nombrePersona = entries[key].value.trim();
+            break;
+        }
+    }
+    if (!nombrePersona) {
+        for (const key in entries) {
+            if (entries[key] && entries[key].value && entries[key].value.trim() &&
+                (key.indexOf("NOMBRE") !== -1 || key.indexOf("ACTOR") !== -1 || key.indexOf("DEMANDADO") !== -1)) {
+                nombrePersona = entries[key].value.trim();
+                break;
+            }
+        }
+    }
+
+    let tipoDocumento = "";
+    if (docBaseSeleccionado) {
+        const sub = (docBaseSeleccionado.subcategoria || "").trim();
+        const cat = (docBaseSeleccionado.categoria || "").trim();
+        const nombreDoc = (docBaseSeleccionado.nombre || "").trim();
+        if (sub) {
+            tipoDocumento = sub;
+        } else if (cat) {
+            tipoDocumento = "Demanda " + cat;
+        } else if (nombreDoc) {
+            tipoDocumento = nombreDoc;
+        }
+    }
+    if (!tipoDocumento) {
+        tipoDocumento = "Documento JurisFlow";
+    }
+
+    function limpiarNombre(str) {
+        return str
+            .replace(/[<>:"/\\|?*]/g, "")
+            .replace(/\s+/g, " ")
+            .trim();
+    }
+
+    let partes = [];
+    if (nombrePersona) partes.push(limpiarNombre(nombrePersona));
+    partes.push(limpiarNombre(tipoDocumento));
+    let nombreFinal = partes.join(" - ");
+    if (nombreFinal.length > 120) nombreFinal = nombreFinal.substring(0, 120).trim();
+    return nombreFinal + ".docx";
 }
 
 var cambiosPendientes = 0;
