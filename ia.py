@@ -1297,7 +1297,7 @@ def chatear_con_ia(mensaje, historial=None, instrucciones=""):
     # 🔧 FIX: el chat debe obedecer las instrucciones del usuario. Antes se
     # usaba solo PROMPT_PRINCIPAL + MODO_CHAT y la IA ignoraba lo que el
     # usuario escribía en "Instrucciones adicionales".
-    contexto = PROMPT_PRINCIPAL + MODO_CHAT
+    contexto = MODO_CHAT
 
     if instrucciones and instrucciones.strip():
         contexto += f"""
@@ -1318,11 +1318,11 @@ siempre al responder y al corregir documentos:
         }
     ]
 
-    for h in (historial or []):
+    for h in (historial or [])[-5:]:
         rol = "user" if h.get("rol") == "usuario" else "assistant"
         contenido = h.get("contenido", "")
         if contenido:
-            mensajes.append({"role": rol, "content": contenido})
+            mensajes.append({"role": rol, "content": contenido[:500]})
 
     mensajes.append({"role": "user", "content": mensaje})
 
@@ -1347,7 +1347,7 @@ def chatear_con_ia_streaming(mensaje, historial=None, instrucciones="", contexto
     contexto_documento: dict con estado actual del documento (entries, editor_text, etc.)
     """
 
-    contexto = PROMPT_PRINCIPAL + MODO_CHAT
+    contexto = MODO_CHAT
 
     if instrucciones and instrucciones.strip():
         contexto += f"""
@@ -1362,7 +1362,7 @@ siempre al responder y al corregir documentos:
 """
 
     if contexto_documento:
-        doc_texto = (contexto_documento.get("editor_text", "") or "")[:6000]
+        doc_texto = (contexto_documento.get("editor_text", "") or "")[:3000]
         doc_entries = contexto_documento.get("entries", {}) or {}
         doc_categoria = contexto_documento.get("categoria", "") or ""
         doc_subcategoria = contexto_documento.get("subcategoria", "") or ""
@@ -1396,11 +1396,11 @@ Primeros caracteres del documento:
         {"role": "system", "content": contexto}
     ]
 
-    for h in (historial or []):
+    for h in (historial or [])[-5:]:
         rol = "user" if h.get("rol") == "usuario" else "assistant"
         contenido = h.get("contenido", "")
         if contenido:
-            mensajes.append({"role": rol, "content": contenido})
+            mensajes.append({"role": rol, "content": contenido[:500]})
 
     mensajes.append({"role": "user", "content": mensaje})
 
@@ -1419,8 +1419,32 @@ Primeros caracteres del documento:
         yield json.dumps({"done": True}, ensure_ascii=False) + "\n"
 
     except Exception as e:
+        error_str = str(e)
         print("❌ ERROR CHAT STREAMING:", type(e).__name__, "-", e)
-        yield json.dumps({"error": str(e)}, ensure_ascii=False) + "\n"
+
+        if "413" in error_str or "TPM" in error_str or "tokens" in error_str.lower():
+            print("⚠️ TPM excedido, reintentando con contexto reducido...")
+            reduced_contexto = MODO_CHAT[:2000]
+            reduced_mensajes = [
+                {"role": "system", "content": reduced_contexto},
+                mensajes[-1]
+            ]
+            try:
+                stream2 = client.chat.completions.create(
+                    model="openai/gpt-oss-120b",
+                    messages=reduced_mensajes,
+                    temperature=0,
+                    stream=True
+                )
+                for chunk in stream2:
+                    if chunk.choices and chunk.choices[0].delta.content:
+                        yield json.dumps({"chunk": chunk.choices[0].delta.content}, ensure_ascii=False) + "\n"
+                yield json.dumps({"done": True}, ensure_ascii=False) + "\n"
+                return
+            except Exception as e2:
+                print("❌ ERROR REINTENTO:", type(e2).__name__, "-", e2)
+
+        yield json.dumps({"error": "La solicitud es demasiado extensa. Intenta con una instrucción más corta."}, ensure_ascii=False) + "\n"
 
 
 def sugerir_clasificacion(texto):

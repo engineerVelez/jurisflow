@@ -1574,7 +1574,7 @@ function iaConstruirContexto() {
     var editor = document.getElementById("editor");
     var editorText = "";
     if (editor) {
-        editorText = (editor.innerText || editor.textContent || "").substring(0, 6000);
+        editorText = (editor.innerText || editor.textContent || "").substring(0, 3000);
     }
     var entries = {};
     if (configuracionActual && configuracionActual.dynamicEntries) {
@@ -1601,7 +1601,7 @@ async function enviarChatStream() {
 
     var payload = {
         mensaje: msg,
-        historial: historialChat.slice(-20),
+        historial: historialChat.slice(-5),
         instrucciones: localStorage.getItem("promptIA") || "",
         contexto_documento: iaConstruirContexto()
     };
