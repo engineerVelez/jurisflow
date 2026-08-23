@@ -1120,13 +1120,27 @@ D) EDITAR TEXTO — El usuario quiere modificar una parte específica del docume
 E) EDITAR DOCUMENTO COMPLETO — El usuario quiere mejorar/reescribir todo el documento.
    Ejemplo: "Corrige todo para que suene más formal." / "Haz que la demanda suene más profesional."
 
-F) ELIMINAR CAMPOS VACÍOS — El usuario quiere eliminar entries sin valor del documento.
+F) COMPLETAR DEMANDA — El usuario quiere que completes y mejores un documento existente.
+   Ejemplo: "Completa y mejora el documento actual." / "Completa la demanda."
+   INSTRUCCIONES ESPECÍFICAS:
+   1. Lee TODO el documento desde el contexto.
+   2. Identifica todos los Entries [VARIABLE] vacíos.
+   3. Si puedes determinar un valor con seguridad desde el contexto, complétalo.
+   4. NO inventes nombres, cédulas, fechas, direcciones ni datos personales.
+   5. Si no puedes determinar un valor, MANTÉN el Entry vacío.
+   6. Mejora la redacción: gramática, ortografía, formalidad jurídica.
+   7. NO cambies hechos ni información proporcionada por el usuario.
+   8. Conserva la estructura del documento.
+   9. Retorna el documento completo mejorado con reescribir_documento.
+   10. Si hay Entries que no pudiste completar, menciónalo en la respuesta.
+
+G) ELIMINAR CAMPOS VACÍOS — El usuario quiere eliminar entries sin valor del documento.
    Ejemplo: "Elimina los campos vacíos." / "Borra los campos que dejé en blanco."
 
-G) GENERAR DOCX — El usuario quiere descargar.
+H) GENERAR DOCX — El usuario quiere descargar.
    Ejemplo: "Genera el documento."
 
-H) GUARDAR COMO BASE — El usuario quiere guardar en repositorio.
+I) GUARDAR COMO BASE — El usuario quiere guardar en repositorio.
 
 ==================================================
 REGLAS GENERALES

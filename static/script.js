@@ -2272,6 +2272,26 @@ function iaEliminarCamposVacios(divBubble) {
     divBubble.appendChild(btns);
 }
 
+function iaCompletarDemanda() {
+    var editor = document.getElementById("editor");
+    if (!editor) { alert("No hay un documento abierto en el editor."); return; }
+
+    var texto = (editor.innerText || editor.textContent || "").trim();
+    if (!texto) { alert("El editor está vacío. Abra o genere un documento primero."); return; }
+
+    var tieneEntries = /\[[A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ0-9_]*\]/.test(texto);
+    if (!tieneEntries) { alert("El documento no contiene Entries ([VARIABLE]) para completar."); return; }
+
+    var input = document.getElementById("chatMensaje");
+    if (input) input.value = "";
+
+    abrirConfig();
+
+    var msg = "Completa y mejora el documento actual. Analiza todos los Entries vacíos, completa aquellos que puedas determinar con seguridad a partir del contexto del documento, y mejora la redacción general. NO inventes nombres, cédulas, fechas ni datos personales que no estén en el documento. Mantén todos los Entries que no puedas completar.";
+    input.value = msg;
+    enviarChatStream();
+}
+
 var _iaDocGenResultado = null;
 var _iaDocGenBlob = null;
 
