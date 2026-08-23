@@ -1686,7 +1686,7 @@ function procesarAccionesIA(respuesta, seleccion, divBubble, contChat) {
     var editor = document.getElementById("editor");
 
     var accionMatches = respuesta.match(/<!--JURIS_ACTION\{(.*?)\}-->/gs) || [];
-    var respuestaLimpia = respuesta.replace(/<!--JURIS_ACTION\{.*?\}-->/g, "").trim();
+    var respuestaLimpia = respuesta.replace(/<!--JURIS_ACTION\{.*?\}-->/gs, "").trim();
     if (editor) {
         divBubble.innerHTML = "🤖 " + escapeHTML(respuestaLimpia);
     }
@@ -1700,7 +1700,7 @@ function procesarAccionesIA(respuesta, seleccion, divBubble, contChat) {
                 return;
             }
             try {
-                var raw = accionMatches[idx].match(/<!--JURIS_ACTION\{(.*?)\}-->/s);
+                var raw = accionMatches[idx].match(/<!--JURIS_ACTION(\{.*?\})-->/s);
                 if (raw) {
                     var accion = JSON.parse(raw[1]);
                     iaEjecutarAccion(accion, divBubble);
