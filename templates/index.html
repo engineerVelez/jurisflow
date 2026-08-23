@@ -231,8 +231,8 @@
         }
         .campo input::placeholder { color: #94a3b8; }
 
-        /* ===== FLAT ENTRY LIST (v144) ===== */
-        .v144-hidden { display: none !important; }
+        /* ===== FLAT ENTRY LIST (v146) ===== */
+        .v146-hidden { display: none !important; }
         #contenedorEntriesFijos .pagina-entries { display: none !important; }
         #contenedorEntriesFijos .legend { display: none !important; }
         #contenedorEntriesFijos .campo { display: none !important; }
@@ -282,13 +282,13 @@
             flex-shrink: 0;
         }
         #listaEntriesPlana .entry-item .entry-contador:hover { transform: scale(1.15); }
-        #listaEntriesPlana .v144-empty {
+        #listaEntriesPlana .v146-empty {
             color: #94a3b8;
             font-size: 12px;
             padding: 16px 0;
             text-align: center;
         }
-        #listaEntriesPlana .v144-seccion-titulo {
+        #listaEntriesPlana .v146-seccion-titulo {
             font-size: 11px;
             font-weight: 700;
             color: #64748b;
@@ -696,7 +696,7 @@
 
 <div class="header">
     <div>
-        <h1>⚖️ Replace Docs JuRidocs <span id="version-badge">v144</span></h1>
+        <h1>⚖️ Replace Docs JuRidocs <span id="version-badge">v146</span></h1>
         <div class="sub">Análisis automático de documentos jurídicos</div>
     </div>
     <button class="btn btn-secundario" onclick="abrirConfig()">⚙ Configuración IA</button>
@@ -840,6 +840,7 @@
         <div id="editor" contenteditable="true"></div>
         <div class="barra-acciones">
             <button class="btn btn-primary" onclick="descargarDocx()">GUARDAR DOCUMENTO X</button>
+            <button class="btn btn-primary" onclick="detectarYSincronizarEntries(true)" style="background:#059669;">🔄 ACTUALIZAR ENTRIES</button>
             <div style="flex:1"></div>
             <span id="cambiosPendientesBadge" style="display:none; font-size:11px; color:#b45309; margin-right:8px;">CAMBIOS PENDIENTES: <b id="cambiosPendientesCount">0</b></span>
             <button id="btnGuardarCambios" class="btn btn-guardar-cambios" onclick="guardarCambios()" disabled>💾 GUARDAR CAMBIOS</button>
@@ -1834,17 +1835,17 @@
 
     </div> <!-- fin contenedorEntriesFijos -->
 
-        <!-- v144: FLAT ENTRY LIST -->
+        <!-- v146: FLAT ENTRY LIST -->
         <div id="listaEntriesPlana">
-            <div class="v144-seccion-titulo">ENTRIES</div>
-            <div id="v144EntriesContainer">
-                <p class="v144-empty">Abra un documento base para detectar entries.</p>
+            <div class="v146-seccion-titulo" style="display:flex; align-items:center; justify-content:space-between;"><span>ENTRIES</span> <button onclick="detectarYSincronizarEntries(true)" title="Recargar Entries" style="background:none; border:1px solid #d1d5db; border-radius:4px; cursor:pointer; font-size:14px; padding:2px 6px; line-height:1;">↻</button></div>
+            <div id="v146EntriesContainer">
+                <p class="v146-empty">Abra un documento base para detectar entries.</p>
             </div>
         </div>
-        <!-- fin v144 -->
+        <!-- fin v146 -->
 
         <!-- BOTONES DE NAVEGACION -->
-        <div class="barra-acciones v144-hidden">
+        <div class="barra-acciones v146-hidden">
             <div class="nav-der">
                 <button class="btn btn-nav" onclick="anterior()">⬅ Anterior</button>
                 <button class="btn btn-nav" onclick="siguiente()">Siguiente ➡</button>
@@ -1893,7 +1894,7 @@
 </div>
 
 <script src="/static/variables_maestro.js?v=3"></script>
-<script src="/static/script.js?v=144"></script>
+<script src="/static/script.js?v=146"></script>
 
 
 <!-- CONFIG -->

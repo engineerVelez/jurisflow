@@ -1091,7 +1091,7 @@ def calcular_confianza(datos):
 
 MODO_CHAT = """
 ==================================================
-MODO ASISTENTE JURÍDICO — JURISFLOW v144
+MODO ASISTENTE JURÍDICO — JURISFLOW v146
 ==================================================
 
 Eres un asistente jurídico inteligente integrado al editor de documentos

@@ -1,4 +1,4 @@
-﻿const VERSION_SCRIPT = 144;
+﻿const VERSION_SCRIPT = 146;
 console.log("🔥 VERSION NUEVA 🔥 v" + VERSION_SCRIPT);
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -1076,7 +1076,7 @@ async function aplicarDatosIA(data) {
     configuracionActual = configuracionActual || {};
     configuracionActual.dynamicEntries = {};
     matchNavigationState = {};
-    var containerEntries = document.getElementById("v142EntriesContainer");
+    var containerEntries = document.getElementById("v146EntriesContainer");
     if (containerEntries) containerEntries.innerHTML = "";
 
     // 🔎 TRAZADO: valor que DEVOLVIÓ la IA para el documento ACTUAL
@@ -1792,18 +1792,19 @@ function iaCrearDocumentoEnEditor(accion, divBubble) {
     }).join("");
     editor.innerHTML = html;
 
-    if (accion.titulo) {
-        docBaseSeleccionado = {
-            nombre: accion.titulo,
-            categoria: accion.categoria || "OTROS",
-            subcategoria: accion.subcategoria || "",
-            procedimiento: accion.procedimiento || ""
-        };
-    }
+    var titulo = accion.titulo || "Documento Jurídico";
+    var categoria = accion.categoria || "OTROS";
+    var subcategoria = accion.subcategoria || "";
+    var procedimiento = accion.procedimiento || "";
 
-    if (typeof detectarYSincronizarEntries === "function") {
-        detectarYSincronizarEntries();
-    }
+    docBaseSeleccionado = {
+        nombre: titulo,
+        categoria: categoria,
+        subcategoria: subcategoria,
+        procedimiento: procedimiento
+    };
+
+    detectarYSincronizarEntries(true);
     marcarCambio();
     iaRegistrarOperacion(editor.innerHTML);
 
@@ -1823,14 +1824,42 @@ function iaCrearDocumentoEnEditor(accion, divBubble) {
     btnDesc.onclick = function() { descargarDocx(); };
     btns.appendChild(btnDesc);
 
-    var btnGuardar = document.createElement("button");
-    btnGuardar.className = "btn btn-primary";
-    btnGuardar.style.cssText = "font-size:11px; padding:5px 10px; background:#7c3aed;";
-    btnGuardar.textContent = "📁 GUARDAR COMO BASE";
-    btnGuardar.onclick = function() { iaGuardarComoBase(); };
-    btns.appendChild(btnGuardar);
-
     divBubble.appendChild(btns);
+
+    iaGenerarDocxBlob(texto, titulo, categoria, subcategoria, procedimiento);
+}
+
+function iaGenerarDocxBlob(texto, titulo, categoria, subcategoria, procedimiento) {
+    fetch("/exportar-docx", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ texto: texto })
+    }).then(function(resp) {
+        if (!resp.ok) throw new Error("Error generando DOCX");
+        return resp.blob();
+    }).then(function(blob) {
+        _iaDocGenBlob = blob;
+        _iaDocGenResultado = {
+            titulo: titulo,
+            categoria: categoria,
+            subcategoria: subcategoria,
+            procedimiento: procedimiento,
+            texto: texto,
+            filename: (titulo || "documento") + ".docx"
+        };
+        iaAbrirModalGuardado(titulo, categoria, subcategoria, procedimiento);
+    }).catch(function(err) {
+        console.error("Error generando DOCX:", err);
+    });
+}
+
+function iaAbrirModalGuardado(titulo, categoria, subcategoria, procedimiento) {
+    document.getElementById("modalGenBaseNombre").value = titulo || "";
+    document.getElementById("modalGenBaseCategoria").value = categoria || "OTROS";
+    document.getElementById("modalGenBaseSubcategoria").value = subcategoria || "";
+    document.getElementById("modalGenBaseProcedimiento").value = procedimiento || "";
+    document.getElementById("modalGenBaseDescripcion").value = "";
+    document.getElementById("modalGenBase").classList.add("abierto");
 }
 
 function iaModificarEntry(key, value, divBubble) {
@@ -2029,6 +2058,7 @@ function iaEliminarTexto(buscar, divBubble) {
 }
 
 var _iaDocGenResultado = null;
+var _iaDocGenBlob = null;
 
 async function iaCrearDocumento() {
     var input = document.getElementById("chatMensaje");
@@ -2187,7 +2217,6 @@ function cerrarModalGenBase() {
 }
 
 async function confirmarGuardarGenBase() {
-    if (!_iaDocGenResultado) return;
     var nombre = document.getElementById("modalGenBaseNombre").value.trim();
     var categoria = document.getElementById("modalGenBaseCategoria").value.trim();
     var subcategoria = document.getElementById("modalGenBaseSubcategoria").value.trim();
@@ -2196,11 +2225,22 @@ async function confirmarGuardarGenBase() {
 
     if (!nombre) { alert("Ingrese un nombre."); return; }
 
-    var bytes = Uint8Array.from(atob(_iaDocGenResultado.docx_base64), function(c) { return c.charCodeAt(0); });
-    var blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+    var blob = null;
+    var filename = "documento.docx";
+
+    if (_iaDocGenBlob) {
+        blob = _iaDocGenBlob;
+        filename = _iaDocGenResultado ? _iaDocGenResultado.filename || "documento.docx" : "documento.docx";
+    } else if (_iaDocGenResultado && _iaDocGenResultado.docx_base64) {
+        var bytes = Uint8Array.from(atob(_iaDocGenResultado.docx_base64), function(c) { return c.charCodeAt(0); });
+        blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+        filename = _iaDocGenResultado.filename || "documento.docx";
+    }
+
+    if (!blob) { alert("No hay documento para guardar."); return; }
 
     var formData = new FormData();
-    formData.append("file", blob, _iaDocGenResultado.filename || "documento.docx");
+    formData.append("file", blob, filename);
     formData.append("nombre", nombre);
     formData.append("categoria", categoria || "OTROS");
     formData.append("subcategoria", subcategoria || "");
@@ -2213,6 +2253,7 @@ async function confirmarGuardarGenBase() {
         if (!resp.ok) throw new Error("Error al guardar");
         await agregarATaxonomia(categoria, subcategoria || null, procedimiento || null);
         await cargarDocumentosBase();
+        _iaDocGenBlob = null;
         alert("Documento guardado como documento base.");
     } catch (e) {
         alert("Error: " + e.message);
@@ -4947,12 +4988,12 @@ function sincronizarEntriesConDocumento(placeholdersDetectados, conteosEntradas)
 // v142: SISTEMA DE ENTRIES SIMPLIFICADO
 // ============================================================
 
-function detectarYSincronizarEntries() {
-    if (!documentoBaseId) return;
+function detectarYSincronizarEntries(skipGuard) {
+    if (!skipGuard && !documentoBaseId) return;
 
     var placeholders = detectarPlaceholdersDelDocumento();
     var vinculadas = detectarEntriesVinculadas();
-    var container = document.getElementById("v142EntriesContainer");
+    var container = document.getElementById("v146EntriesContainer");
     if (!container) return;
 
     if (!configuracionActual) configuracionActual = {};
@@ -5041,11 +5082,11 @@ function detectarYSincronizarEntries() {
 }
 
 function construirListaEntriesPlana(variables, placeholders, mapeo) {
-    var container = document.getElementById("v142EntriesContainer");
+    var container = document.getElementById("v146EntriesContainer");
     if (!container) return;
 
     if (!variables || variables.length === 0) {
-        container.innerHTML = '<p class="v142-empty">No se detectaron placeholders [VARIABLE] en el documento.</p>';
+        container.innerHTML = '<p class="v146-empty">No se detectaron placeholders [VARIABLE] en el documento.</p>';
         return;
     }
 
@@ -5055,7 +5096,7 @@ function construirListaEntriesPlana(variables, placeholders, mapeo) {
         return orderA - orderB;
     });
 
-    var html = '<div class="v142-seccion-titulo">ENTRIES (' + variables.length + ')</div>';
+    var html = '<div class="v146-seccion-titulo" style="display:flex; align-items:center; justify-content:space-between;"><span>ENTRIES (' + variables.length + ')</span> <button onclick="detectarYSincronizarEntries(true)" title="Recargar Entries" style="background:none; border:1px solid #d1d5db; border-radius:4px; cursor:pointer; font-size:14px; padding:2px 6px; line-height:1;">↻</button></div>';
 
     variables.forEach(function(variable) {
         var de = configuracionActual.dynamicEntries[variable];
@@ -5227,8 +5268,11 @@ function actualizarContadorEntrada(variable, count) {
 
 function actualizarHeaderEntries(container) {
     var total = container.querySelectorAll(".entry-item").length;
-    var titulo = container.querySelector(".v142-seccion-titulo");
-    if (titulo) titulo.textContent = "ENTRIES (" + total + ")";
+    var titulo = container.querySelector(".v146-seccion-titulo");
+    if (titulo) {
+        var label = titulo.querySelector("span");
+        if (label) label.textContent = "ENTRIES (" + total + ")";
+    }
 }
 
 function actualizarEntriesEnTiempoReal() {
@@ -5236,7 +5280,7 @@ function actualizarEntriesEnTiempoReal() {
 
     var placeholders = detectarPlaceholdersDelDocumento();
     var vinculadas = detectarEntriesVinculadas();
-    var container = document.getElementById("v142EntriesContainer");
+    var container = document.getElementById("v146EntriesContainer");
     if (!container) return;
 
     if (!configuracionActual) configuracionActual = {};
