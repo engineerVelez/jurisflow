@@ -1835,6 +1835,7 @@ function iaCrearDocumentoEnEditor(accion, divBubble) {
     var categoria = accion.categoria || "OTROS";
     var subcategoria = accion.subcategoria || "";
     var procedimiento = accion.procedimiento || "";
+    var descripcion = accion.descripcion || "";
 
     docBaseSeleccionado = {
         nombre: titulo,
@@ -1865,10 +1866,10 @@ function iaCrearDocumentoEnEditor(accion, divBubble) {
 
     divBubble.appendChild(btns);
 
-    iaGenerarDocxBlob(texto, titulo, categoria, subcategoria, procedimiento);
+    iaGenerarDocxBlob(texto, titulo, categoria, subcategoria, procedimiento, descripcion);
 }
 
-function iaGenerarDocxBlob(texto, titulo, categoria, subcategoria, procedimiento) {
+function iaGenerarDocxBlob(texto, titulo, categoria, subcategoria, procedimiento, descripcion) {
     fetch("/exportar-docx", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1883,10 +1884,11 @@ function iaGenerarDocxBlob(texto, titulo, categoria, subcategoria, procedimiento
             categoria: categoria,
             subcategoria: subcategoria,
             procedimiento: procedimiento,
+            descripcion: descripcion || "",
             texto: texto,
             filename: (titulo || "documento") + ".docx"
         };
-        iaAbrirModalGuardado(titulo, categoria, subcategoria, procedimiento);
+        iaAbrirModalGuardado(titulo, categoria, subcategoria, procedimiento, descripcion);
     }).catch(function(err) {
         console.error("Error generando DOCX:", err);
     });
@@ -1919,7 +1921,7 @@ function modalGenBaseOnSubcategoriaChange() {
     modalGenBaseLlenarSelect(document.getElementById("modalGenBaseProcedimiento"), procs, "");
 }
 
-function iaAbrirModalGuardado(titulo, categoria, subcategoria, procedimiento) {
+function iaAbrirModalGuardado(titulo, categoria, subcategoria, procedimiento, descripcion) {
     document.getElementById("modalGenBaseNombre").value = titulo || "";
 
     var fileLabel = document.getElementById("modalGenBaseArchivo");
@@ -1961,7 +1963,7 @@ function iaAbrirModalGuardado(titulo, categoria, subcategoria, procedimiento) {
     }
     modalGenBaseLlenarSelect(document.getElementById("modalGenBaseProcedimiento"), procs, procMatch);
 
-    document.getElementById("modalGenBaseDescripcion").value = "";
+    document.getElementById("modalGenBaseDescripcion").value = descripcion || ("Formato de " + (titulo || "documento") + " con marcadores dinámicos para completar los datos de las partes y del proceso.");
     document.getElementById("modalGenBase").classList.add("abierto");
 }
 

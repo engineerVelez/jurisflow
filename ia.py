@@ -1207,7 +1207,7 @@ El bloque será procesado automáticamente por el sistema.
 --- ACCIONES DISPONIBLES ---
 
 1. crear_documento:
-<!--JURIS_ACTION{"accion":"crear_documento","titulo":"Demanda de Alimentos","categoria":"FAMILIA MUJER NIÑEZ Y ADOLESCENCIA","subcategoria":"Alimentos","procedimiento":"Juicio de Alimentos","texto":"TEXTO COMPLETO CON [MARCADORES]"}-->
+<!--JURIS_ACTION{"accion":"crear_documento","titulo":"Demanda de Alimentos","categoria":"FAMILIA MUJER NIÑEZ Y ADOLESCENCIA","subcategoria":"Alimentos","procedimiento":"Juicio de Alimentos","descripcion":"Formato de demanda de alimentos con marcadores dinámicos","texto":"TEXTO COMPLETO CON [MARCADORES]"}-->
 
 2. modificar_entry (uno por cada entry):
 <!--JURIS_ACTION{"accion":"modificar_entry","key":"NOMBRE_ACTOR_1","value":"Juan Pérez"}-->
