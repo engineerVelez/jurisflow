@@ -1,4 +1,4 @@
-﻿const VERSION_SCRIPT = 146;
+﻿const VERSION_SCRIPT = 148;
 console.log("🔥 VERSION NUEVA 🔥 v" + VERSION_SCRIPT);
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -1076,7 +1076,7 @@ async function aplicarDatosIA(data) {
     configuracionActual = configuracionActual || {};
     configuracionActual.dynamicEntries = {};
     matchNavigationState = {};
-    var containerEntries = document.getElementById("v146EntriesContainer");
+    var containerEntries = document.getElementById("v148EntriesContainer");
     if (containerEntries) containerEntries.innerHTML = "";
 
     // 🔎 TRAZADO: valor que DEVOLVIÓ la IA para el documento ACTUAL
@@ -1853,11 +1853,75 @@ function iaGenerarDocxBlob(texto, titulo, categoria, subcategoria, procedimiento
     });
 }
 
+function modalGenBaseLlenarSelect(selectEl, options, selectedValue) {
+    if (!selectEl) return;
+    var html = '<option value="">— Seleccionar —</option>';
+    options.forEach(function(opt) {
+        var sel = opt.toUpperCase() === (selectedValue || "").toUpperCase() ? " selected" : "";
+        html += '<option value="' + opt.replace(/"/g, '&quot;') + '"' + sel + '>' + opt + '</option>';
+    });
+    if (selectedValue && options.every(function(o) { return o.toUpperCase() !== selectedValue.toUpperCase(); })) {
+        html += '<option value="' + selectedValue.replace(/"/g, '&quot;') + '" selected>' + selectedValue + '</option>';
+    }
+    selectEl.innerHTML = html;
+}
+
+function modalGenBaseOnCategoriaChange() {
+    var cat = document.getElementById("modalGenBaseCategoria").value;
+    var subs = typeof getSubcategoriasDe === "function" ? getSubcategoriasDe(cat) : [];
+    modalGenBaseLlenarSelect(document.getElementById("modalGenBaseSubcategoria"), subs, "");
+    modalGenBaseOnSubcategoriaChange();
+}
+
+function modalGenBaseOnSubcategoriaChange() {
+    var cat = document.getElementById("modalGenBaseCategoria").value;
+    var sub = document.getElementById("modalGenBaseSubcategoria").value;
+    var procs = typeof getProcedimientosDe === "function" ? getProcedimientosDe(cat, sub) : [];
+    modalGenBaseLlenarSelect(document.getElementById("modalGenBaseProcedimiento"), procs, "");
+}
+
 function iaAbrirModalGuardado(titulo, categoria, subcategoria, procedimiento) {
     document.getElementById("modalGenBaseNombre").value = titulo || "";
-    document.getElementById("modalGenBaseCategoria").value = categoria || "OTROS";
-    document.getElementById("modalGenBaseSubcategoria").value = subcategoria || "";
-    document.getElementById("modalGenBaseProcedimiento").value = procedimiento || "";
+
+    var fileLabel = document.getElementById("modalGenBaseArchivo");
+    var fileNombre = document.getElementById("modalGenBaseArchivoNombre");
+    if (_iaDocGenResultado && _iaDocGenResultado.filename) {
+        fileLabel.style.display = "block";
+        fileNombre.textContent = _iaDocGenResultado.filename;
+    } else {
+        fileLabel.style.display = "none";
+    }
+
+    var cats = typeof getTodasCategorias === "function" ? getTodasCategorias() : [];
+    var catMatch = categoria || "OTROS";
+    if (cats.length > 0 && categoria) {
+        var upper = categoria.toUpperCase().trim();
+        var found = cats.find(function(c) { return c.toUpperCase() === upper; });
+        if (!found) found = cats.find(function(c) { return c.toUpperCase().indexOf(upper) !== -1 || upper.indexOf(c.toUpperCase()) !== -1; });
+        if (found) catMatch = found;
+    }
+    modalGenBaseLlenarSelect(document.getElementById("modalGenBaseCategoria"), cats, catMatch);
+
+    var subs = typeof getSubcategoriasDe === "function" ? getSubcategoriasDe(catMatch) : [];
+    var subMatch = subcategoria || "";
+    if (subs.length > 0 && subcategoria) {
+        var upperS = subcategoria.toUpperCase().trim();
+        var foundS = subs.find(function(s) { return s.toUpperCase() === upperS; });
+        if (!foundS) foundS = subs.find(function(s) { return s.toUpperCase().indexOf(upperS) !== -1 || upperS.indexOf(s.toUpperCase()) !== -1; });
+        if (foundS) subMatch = foundS;
+    }
+    modalGenBaseLlenarSelect(document.getElementById("modalGenBaseSubcategoria"), subs, subMatch);
+
+    var procs = typeof getProcedimientosDe === "function" ? getProcedimientosDe(catMatch, subMatch) : [];
+    var procMatch = procedimiento || "";
+    if (procs.length > 0 && procedimiento) {
+        var upperP = procedimiento.toUpperCase().trim();
+        var foundP = procs.find(function(p) { return p.toUpperCase() === upperP; });
+        if (!foundP) foundP = procs.find(function(p) { return p.toUpperCase().indexOf(upperP) !== -1 || upperP.indexOf(p.toUpperCase()) !== -1; });
+        if (foundP) procMatch = foundP;
+    }
+    modalGenBaseLlenarSelect(document.getElementById("modalGenBaseProcedimiento"), procs, procMatch);
+
     document.getElementById("modalGenBaseDescripcion").value = "";
     document.getElementById("modalGenBase").classList.add("abierto");
 }
@@ -2238,6 +2302,15 @@ async function confirmarGuardarGenBase() {
     }
 
     if (!blob) { alert("No hay documento para guardar."); return; }
+
+    if (typeof documentosBaseCache !== "undefined" && documentosBaseCache) {
+        var duplicado = documentosBaseCache.find(function(d) {
+            return d.nombre && d.nombre.toUpperCase().trim() === nombre.toUpperCase().trim() && d.categoria && d.categoria.toUpperCase() === categoria.toUpperCase();
+        });
+        if (duplicado) {
+            if (!confirm("Ya existe un documento con el nombre \"" + nombre + "\" en la categoría \"" + categoria + "\".\n\n¿Desea guardarlo de todos modos?")) return;
+        }
+    }
 
     var formData = new FormData();
     formData.append("file", blob, filename);
@@ -4766,39 +4839,106 @@ function mapearVariableAEntrada(contenido) {
     return null;
 }
 
-function resaltarMarcadoresBase(mapeo, resaltados) {
-    const editor = document.getElementById("editor");
+function normalizarNodosDeTexto(root) {
+    var BLOCK_TAGS = ["P","DIV","LI","H1","H2","H3","H4","H5","H6","TD","TH","BLOCKQUOTE","FIGCAPTION"];
+    var isBlock = function(el) { return el && el.nodeType === 1 && BLOCK_TAGS.indexOf(el.tagName) !== -1; };
+    var walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT, null, false);
+    var blocks = [];
+    while (walker.nextNode()) { if (isBlock(walker.currentNode)) blocks.push(walker.currentNode); }
+    blocks.forEach(function(block) {
+        var el = block.firstChild;
+        while (el) {
+            var next = el.nextSibling;
+            if (el.nodeType === 1 && !isBlock(el) && el.tagName !== "SPAN" && el.tagName !== "BR" && el.textContent.trim() === "") {
+                while (el.firstChild) block.insertBefore(el.firstChild, el);
+                el.remove();
+            }
+            el = next;
+        }
+        var node = block.firstChild;
+        while (node) {
+            var nxt = node.nextSibling;
+            if (node.nodeType === 3 && nxt && nxt.nodeType === 3) {
+                node.textContent += nxt.textContent;
+                nxt.remove();
+            } else { node = nxt; }
+        }
+    });
+}
+
+function desresaltarEntradas(editor) {
+    editor.querySelectorAll('span[data-key]').forEach(function(span) {
+        var par = span.parentNode;
+        if (!par) return;
+        while (span.firstChild) par.insertBefore(span.firstChild, span);
+        par.removeChild(span);
+    });
+    editor.normalize();
+}
+
+function resaltarMarcadoresBase(mapeo, resaltados, fullRefresh) {
+    var editor = document.getElementById("editor");
     if (!editor) return;
 
-    let html = editor.innerHTML;
+    if (fullRefresh) {
+        desresaltarEntradas(editor);
+        normalizarNodosDeTexto(editor);
+    }
 
-    const todasLasVariables = [];
-    const _procesadosRM = {};
-    Object.keys(mapeo).forEach(entryId => {
-        if (_procesadosRM[entryId]) return;
-        if (editor.querySelector('span[data-key="' + entryId + '"]')) return;
-        _procesadosRM[entryId] = true;
-        const marcador = mapeo[entryId][0];
+    var entries = [];
+    var _procesados = {};
+    Object.keys(mapeo).forEach(function(entryId) {
+        if (_procesados[entryId]) return;
+        if (!fullRefresh && editor.querySelector('span[data-key="' + entryId + '"]')) return;
+        _procesados[entryId] = true;
+        var marcador = mapeo[entryId][0];
         if (marcador) {
-            todasLasVariables.push({ entryId, marcador });
+            entries.push({ entryId: entryId, marcador: marcador, color: colorCampo(entryId) });
         }
     });
 
-    todasLasVariables.sort((a, b) => b.marcador.length - a.marcador.length);
+    if (entries.length === 0) return;
 
-    todasLasVariables.forEach(({ entryId, marcador }) => {
-        if (resaltados && resaltados[marcador] === false) return;
-        const color = colorCampo(entryId);
-        const escaped = marcador.replace(/[-\/\\^$*+?.()|[\]{}%]/g, '\\$&');
-        const regex = new RegExp(escaped, "g");
-        let counter = 0;
-        html = html.replace(regex, function() {
-            counter++;
-            return '<span data-key="' + entryId + '" data-instance-id="' + entryId + '_base_' + counter + '" style="background:' + color + '; padding:1px 2px; border-radius:2px; cursor:pointer;" title="' + entryId + '">' + marcador + '</span>';
+    entries.sort(function(a, b) { return b.marcador.length - a.marcador.length; });
+
+    entries.forEach(function(entry) {
+        if (resaltados && resaltados[entry.marcador] === false) return;
+        var escaped = entry.marcador.replace(/[-\/\\^$*+?.()|[\]{}%]/g, '\\$&');
+        var regex = new RegExp(escaped, 'g');
+        var walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT, null, false);
+        var textNodes = [];
+        while (walker.nextNode()) {
+            var tn = walker.currentNode;
+            if (tn.parentElement && tn.parentElement.closest && tn.parentElement.closest('span[data-key]')) continue;
+            regex.lastIndex = 0;
+            if (regex.test(tn.textContent)) textNodes.push(tn);
+        }
+        var counter = 0;
+        textNodes.forEach(function(tn) {
+            regex.lastIndex = 0;
+            var text = tn.textContent;
+            var frag = document.createDocumentFragment();
+            var lastIdx = 0;
+            var m;
+            while ((m = regex.exec(text)) !== null) {
+                counter++;
+                if (m.index > lastIdx) frag.appendChild(document.createTextNode(text.substring(lastIdx, m.index)));
+                var span = document.createElement('span');
+                span.setAttribute('data-key', entry.entryId);
+                span.setAttribute('data-instance-id', entry.entryId + '_base_' + counter);
+                span.style.background = entry.color;
+                span.style.padding = '1px 2px';
+                span.style.borderRadius = '2px';
+                span.style.cursor = 'pointer';
+                span.title = entry.entryId;
+                span.textContent = m[0];
+                frag.appendChild(span);
+                lastIdx = m.index + m[0].length;
+            }
+            if (lastIdx < text.length) frag.appendChild(document.createTextNode(text.substring(lastIdx)));
+            if (counter > 0 && tn.parentNode) tn.parentNode.replaceChild(frag, tn);
         });
     });
-
-    editor.innerHTML = html;
 }
 
 // ============================================================
@@ -4988,12 +5128,25 @@ function sincronizarEntriesConDocumento(placeholdersDetectados, conteosEntradas)
 // v142: SISTEMA DE ENTRIES SIMPLIFICADO
 // ============================================================
 
+function recargarEntriesConFeedback() {
+    var titulo = document.querySelector(".v148-seccion-titulo span");
+    if (titulo) titulo.textContent = "Detectando Entries...";
+    setTimeout(function() {
+        detectarYSincronizarEntries(true);
+        var t2 = document.querySelector(".v148-seccion-titulo span");
+        if (t2) {
+            var count = document.querySelectorAll("#v148EntriesContainer .entry-item").length;
+            t2.textContent = "ENTRIES (" + count + ")";
+        }
+    }, 50);
+}
+
 function detectarYSincronizarEntries(skipGuard) {
     if (!skipGuard && !documentoBaseId) return;
 
     var placeholders = detectarPlaceholdersDelDocumento();
     var vinculadas = detectarEntriesVinculadas();
-    var container = document.getElementById("v146EntriesContainer");
+    var container = document.getElementById("v148EntriesContainer");
     if (!container) return;
 
     if (!configuracionActual) configuracionActual = {};
@@ -5026,7 +5179,7 @@ function detectarYSincronizarEntries(skipGuard) {
     Object.keys(configuracionActual.dynamicEntries).forEach(function(v) {
         if (!variablesUnificadas[v]) {
             var entry = configuracionActual.dynamicEntries[v];
-            if (entry && entry.value && entry.placeholder) {
+            if (entry && entry.value && entry.placeholder && !skipGuard) {
                 variablesUnificadas[v] = {
                     variable: v,
                     count: 0,
@@ -5076,17 +5229,17 @@ function detectarYSincronizarEntries(skipGuard) {
     });
 
     construirListaEntriesPlana(variablesDetectadas, variablesUnificadas, mapeo);
-    resaltarMarcadoresBase(mapeo, {});
+    resaltarMarcadoresBase(mapeo, {}, !!skipGuard);
     aplicarValoresGuardadosEnSpans();
     actualizarEstadoBotonGuardarCambios();
 }
 
 function construirListaEntriesPlana(variables, placeholders, mapeo) {
-    var container = document.getElementById("v146EntriesContainer");
+    var container = document.getElementById("v148EntriesContainer");
     if (!container) return;
 
     if (!variables || variables.length === 0) {
-        container.innerHTML = '<p class="v146-empty">No se detectaron placeholders [VARIABLE] en el documento.</p>';
+        container.innerHTML = '<p class="v148-empty">No se detectaron placeholders [VARIABLE] en el documento.</p>';
         return;
     }
 
@@ -5096,7 +5249,7 @@ function construirListaEntriesPlana(variables, placeholders, mapeo) {
         return orderA - orderB;
     });
 
-    var html = '<div class="v146-seccion-titulo" style="display:flex; align-items:center; justify-content:space-between;"><span>ENTRIES (' + variables.length + ')</span> <button onclick="detectarYSincronizarEntries(true)" title="Recargar Entries" style="background:none; border:1px solid #d1d5db; border-radius:4px; cursor:pointer; font-size:14px; padding:2px 6px; line-height:1;">↻</button></div>';
+    var html = '<div class="v148-seccion-titulo" style="display:flex; align-items:center; justify-content:space-between;"><span>ENTRIES (' + variables.length + ')</span> <button onclick="recargarEntriesConFeedback()" title="Recargar Entries" style="background:none; border:1px solid #d1d5db; border-radius:4px; cursor:pointer; font-size:14px; padding:2px 6px; line-height:1;">↻</button></div>';
 
     variables.forEach(function(variable) {
         var de = configuracionActual.dynamicEntries[variable];
@@ -5268,7 +5421,7 @@ function actualizarContadorEntrada(variable, count) {
 
 function actualizarHeaderEntries(container) {
     var total = container.querySelectorAll(".entry-item").length;
-    var titulo = container.querySelector(".v146-seccion-titulo");
+    var titulo = container.querySelector(".v148-seccion-titulo");
     if (titulo) {
         var label = titulo.querySelector("span");
         if (label) label.textContent = "ENTRIES (" + total + ")";
@@ -5280,7 +5433,7 @@ function actualizarEntriesEnTiempoReal() {
 
     var placeholders = detectarPlaceholdersDelDocumento();
     var vinculadas = detectarEntriesVinculadas();
-    var container = document.getElementById("v146EntriesContainer");
+    var container = document.getElementById("v148EntriesContainer");
     if (!container) return;
 
     if (!configuracionActual) configuracionActual = {};
