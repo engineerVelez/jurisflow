@@ -1,4 +1,4 @@
-﻿const VERSION_SCRIPT = 142;
+﻿const VERSION_SCRIPT = 144;
 console.log("🔥 VERSION NUEVA 🔥 v" + VERSION_SCRIPT);
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -1036,7 +1036,7 @@ document.getElementById("form").addEventListener("submit", async (e) => {
 
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("prompt", document.getElementById("promptIA")?.value || localStorage.getItem("promptIA") || "");
+    formData.append("prompt", localStorage.getItem("promptIA") || "");
 
     try {
         const response = await fetch("/upload", {
@@ -1295,17 +1295,54 @@ function cerrarConfig() {
     document.getElementById("configPanel").style.display = "none";
 }
 
+var _iaInstruccionesDefault = "Actúa como asistente jurídico especializado en documentos del Ecuador. Utiliza lenguaje formal. No inventes datos. Cuando falte información crea un Entry.";
+
+function abrirModalConfigIA() {
+    var textarea = document.getElementById("promptIAModal");
+    if (textarea) {
+        textarea.value = localStorage.getItem("promptIA") || "";
+    }
+    document.getElementById("modalConfigIA").classList.add("abierto");
+}
+
+function cerrarModalConfigIA() {
+    document.getElementById("modalConfigIA").classList.remove("abierto");
+}
+
+function guardarInstruccionesIA() {
+    var textarea = document.getElementById("promptIAModal");
+    if (!textarea) return;
+    var valor = textarea.value.trim();
+    localStorage.setItem("promptIA", valor);
+    historialChat = [];
+    localStorage.removeItem("chatIA");
+    cargarChat();
+    alert("Instrucciones guardadas. El chat se reinició con las nuevas instrucciones.");
+    cerrarModalConfigIA();
+}
+
+function restablecerInstruccionesIA() {
+    if (!confirm("¿Deseas restaurar las instrucciones predeterminadas?")) return;
+    localStorage.setItem("promptIA", _iaInstruccionesDefault);
+    var textarea = document.getElementById("promptIAModal");
+    if (textarea) textarea.value = _iaInstruccionesDefault;
+    historialChat = [];
+    localStorage.removeItem("chatIA");
+    cargarChat();
+    alert("Instrucciones restauradas. El chat se reinició.");
+    cerrarModalConfigIA();
+}
+
 function guardarPrompt() {
-    const prompt = document.getElementById("promptIA").value;
+    var textarea = document.getElementById("promptIAModal") || document.getElementById("promptIA");
+    var prompt = textarea ? textarea.value : "";
     localStorage.setItem("promptIA", prompt);
 
-    // 🔧 FIX: al guardar instrucciones nuevas se borra el chat anterior,
-    // para que la IA no arrastre contexto viejo de otro prompt.
     historialChat = [];
     localStorage.removeItem("chatIA");
     cargarChat();
 
-    alert("Instrucciones guardadas. El chat se reinició con el nuevo prompt.");
+    alert("Instrucciones guardadas. El chat se reinició con las nuevas instrucciones.");
     cerrarConfig();
 }
 
@@ -1398,7 +1435,7 @@ async function enviarChat() {
             body: JSON.stringify({
                 mensaje: msg,
                 historial: historialChat,
-                instrucciones: document.getElementById("promptIA")?.value || ""
+                instrucciones: localStorage.getItem("promptIA") || ""
             })
         });
 
@@ -1413,8 +1450,7 @@ async function enviarChat() {
 }
 
 async function aplicarCorreccion(texto) {
-    const ta = document.getElementById("promptIA");
-    if (!ta) return;
+    var instruccionActual = localStorage.getItem("promptIA") || "";
 
     const marcador = "INSTRUCCIÓN PARA ANÁLISIS:";
     const idx = texto.indexOf(marcador);
@@ -1424,15 +1460,10 @@ async function aplicarCorreccion(texto) {
 
     if (!instruccion) return;
 
-    const actual = ta.value.trim();
-    ta.value = actual ? actual + "\n- " + instruccion : "- " + instruccion;
+    const actual = instruccionActual;
+    var nuevo = actual ? actual + "\n- " + instruccion : "- " + instruccion;
+    localStorage.setItem("promptIA", nuevo);
 
-    localStorage.setItem("promptIA", ta.value);
-
-    // 🔧 FIX (nuevo): al aplicar una corrección, el documento ACTUAL se
-    // re-analiza de inmediato con el nuevo prompt, para que el usuario
-    // vea el cambio sin volver a subir el archivo. Antes solo se guardaba
-    // la instrucción y había que re-subir el documento.
     if (textoBase && documentoId) {
         try {
             const response = await fetch("/reanalizar", {
@@ -1440,7 +1471,7 @@ async function aplicarCorreccion(texto) {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     texto: textoOriginal || textoBase,
-                    prompt: ta.value,
+                    prompt: nuevo,
                     documento_id: documentoId
                 })
             });
@@ -1460,9 +1491,8 @@ async function aplicarCorreccion(texto) {
 }
 
 function cargarInstrucciones() {
-    const ta = document.getElementById("promptIA");
-    if (!ta) return;
-    ta.value = localStorage.getItem("promptIA") || "";
+    var ta = document.getElementById("promptIAModal");
+    if (ta) ta.value = localStorage.getItem("promptIA") || "";
 }
 
 // ============================================================
@@ -1526,6 +1556,25 @@ function iaSeleccionTexto() {
     return { texto: texto, range: range.cloneRange() };
 }
 
+function iaConstruirContexto() {
+    var editor = document.getElementById("editor");
+    var editorText = "";
+    if (editor) {
+        editorText = (editor.innerText || editor.textContent || "").substring(0, 3000);
+    }
+    var entries = {};
+    if (configuracionActual && configuracionActual.dynamicEntries) {
+        entries = configuracionActual.dynamicEntries;
+    }
+    var cat = "", sub = "", proc = "";
+    if (docBaseSeleccionado) {
+        cat = docBaseSeleccionado.categoria || "";
+        sub = docBaseSeleccionado.subcategoria || "";
+        proc = docBaseSeleccionado.procedimiento || "";
+    }
+    return { editor_text: editorText, entries: entries, categoria: cat, subcategoria: sub, procedimiento: proc };
+}
+
 async function enviarChatStream() {
     var input = document.getElementById("chatMensaje");
     var msg = (input.value || "").trim();
@@ -1539,7 +1588,8 @@ async function enviarChatStream() {
     var payload = {
         mensaje: msg,
         historial: historialChat.slice(-20),
-        instrucciones: document.getElementById("promptIA")?.value || ""
+        instrucciones: localStorage.getItem("promptIA") || "",
+        contexto_documento: iaConstruirContexto()
     };
 
     if (seleccion) {
@@ -1614,88 +1664,559 @@ async function enviarChatStream() {
 
 function procesarAccionesIA(respuesta, seleccion, divBubble, contChat) {
     var editor = document.getElementById("editor");
-    if (!editor) return;
 
-    var esEdicion = seleccion && seleccion.texto;
-    var tieneAccion = /\b(REPLACE_TEXT|UPDATE_ENTRY|INSERT_TEXT|DELETE_TEXT)\b/i.test(respuesta);
+    var accionMatch = respuesta.match(/<!--JURIS_ACTION({.*?})-->/s);
+    var respuestaLimpia = respuesta.replace(/<!--JURIS_ACTION\{.*?\}-->/g, "").trim();
+    if (editor) {
+        divBubble.innerHTML = "🤖 " + escapeHTML(respuestaLimpia);
+    }
 
-    if (esEdicion || tieneAccion) {
-        var textoSeleccion = seleccion ? seleccion.texto : "";
-        var textoOriginal = "";
-        var textoPropuesto = "";
-
-        var antesMatch = respuesta.match(/ANTES[:\s]*(.*?)(?=DESPUÉS|$)/si);
-        var despuesMatch = respuesta.match(/DESPUÉS[:\s]*(.*?)(?=\[APLICAR|$)/si);
-
-        if (antesMatch && despuesMatch) {
-            textoOriginal = antesMatch[1].trim();
-            textoPropuesto = despuesMatch[1].trim();
-        } else if (textoSeleccion) {
-            textoOriginal = textoSeleccion;
-            var cambioMatch = respuesta.match(/["""](.+?)["""].*?["""](.+?)["""']/s);
-            if (cambioMatch) {
-                textoPropuesto = textoSeleccion.replace(cambioMatch[1], cambioMatch[2]);
-            }
+    if (accionMatch) {
+        try {
+            var accion = JSON.parse(accionMatch[1]);
+            iaEjecutarAccion(accion, divBubble);
+        } catch (e) {
+            console.error("Error parseando JURIS_ACTION:", e);
         }
+    } else if (editor) {
+        var esEdicion = seleccion && seleccion.texto;
+        var tieneAccion = /\b(REPLACE_TEXT|UPDATE_ENTRY|INSERT_TEXT|DELETE_TEXT)\b/i.test(respuesta);
 
-        if (textoOriginal && textoPropuesto && textoOriginal !== textoPropuesto) {
-            var btnContainer = document.createElement("div");
-            btnContainer.className = "ia-action-buttons";
-            btnContainer.style.cssText = "display:flex; gap:8px; margin-top:8px;";
+        if (esEdicion || tieneAccion) {
+            var textoSeleccion = seleccion ? seleccion.texto : "";
+            var textoOriginal = "";
+            var textoPropuesto = "";
 
-            var btnAplicar = document.createElement("button");
-            btnAplicar.className = "btn btn-primary";
-            btnAplicar.style.cssText = "font-size:11px; padding:5px 10px; background:#2563eb;";
-            btnAplicar.textContent = "APLICAR";
-            btnAplicar.onclick = function() {
-                var estadoAntes = iaGuardarEstado();
-                var regex = textoOriginal.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-                var re = new RegExp(regex, "g");
-                if (re.test(editor.innerHTML)) {
-                    editor.innerHTML = editor.innerHTML.replace(re, function(match) {
-                        return '<span class="ia-texto-modificado" style="background:#dcfce7; padding:1px 2px; border-radius:2px;">' + textoPropuesto + '</span>';
-                    });
-                    iaRegistrarOperacion(estadoAntes);
-                    iaRegistrarOperacion(editor.innerHTML);
-                    if (typeof detectarYSincronizarEntries === "function") {
-                        detectarYSincronizarEntries();
-                    }
-                    marcarCambio();
-                    setTimeout(function() {
-                        document.querySelectorAll(".ia-texto-modificado").forEach(function(el) {
-                            el.style.background = "";
-                            el.style.padding = "";
-                            el.style.borderRadius = "";
-                            el.className = "";
-                        });
-                    }, 3000);
+            var antesMatch = respuesta.match(/ANTES[:\s]*(.*?)(?=DESPUÉS|$)/si);
+            var despuesMatch = respuesta.match(/DESPUÉS[:\s]*(.*?)(?=\[APLICAR|$)/si);
+
+            if (antesMatch && despuesMatch) {
+                textoOriginal = antesMatch[1].trim();
+                textoPropuesto = despuesMatch[1].trim();
+            } else if (textoSeleccion) {
+                textoOriginal = textoSeleccion;
+                var cambioMatch = respuesta.match(/["""](.+?)["""].*?["""](.+?)["""']/s);
+                if (cambioMatch) {
+                    textoPropuesto = textoSeleccion.replace(cambioMatch[1], cambioMatch[2]);
                 }
-                btnContainer.innerHTML = '<span style="color:#16a34a; font-size:11px; font-weight:600;">✅ Cambio aplicado</span>';
-                btnContainer.appendChild(document.createElement("br"));
-                var btnDeshacer = document.createElement("button");
-                btnDeshacer.style.cssText = "font-size:11px; padding:4px 8px; background:none; border:1px solid #d1d5db; border-radius:4px; cursor:pointer; margin-top:4px;";
-                btnDeshacer.textContent = "↶ Deshacer";
-                btnDeshacer.onclick = function() { iaDeshacer(); };
-                btnContainer.appendChild(btnDeshacer);
-            };
+            }
 
-            var btnCancelar = document.createElement("button");
-            btnCancelar.className = "btn btn-secundario";
-            btnCancelar.style.cssText = "font-size:11px; padding:5px 10px;";
-            btnCancelar.textContent = "CANCELAR";
-            btnCancelar.onclick = function() {
-                btnContainer.innerHTML = '<span style="color:#64748b; font-size:11px;">Cambio cancelado</span>';
-            };
+            if (textoOriginal && textoPropuesto && textoOriginal !== textoPropuesto) {
+                var btnContainer = document.createElement("div");
+                btnContainer.className = "ia-action-buttons";
+                btnContainer.style.cssText = "display:flex; gap:8px; margin-top:8px;";
 
-            btnContainer.appendChild(btnAplicar);
-            btnContainer.appendChild(btnCancelar);
-            divBubble.appendChild(btnContainer);
+                var btnAplicar = document.createElement("button");
+                btnAplicar.className = "btn btn-primary";
+                btnAplicar.style.cssText = "font-size:11px; padding:5px 10px; background:#2563eb;";
+                btnAplicar.textContent = "APLICAR";
+                btnAplicar.onclick = function() {
+                    var estadoAntes = iaGuardarEstado();
+                    var regex = textoOriginal.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+                    var re = new RegExp(regex, "g");
+                    if (re.test(editor.innerHTML)) {
+                        editor.innerHTML = editor.innerHTML.replace(re, function(match) {
+                            return '<span class="ia-texto-modificado" style="background:#dcfce7; padding:1px 2px; border-radius:2px;">' + textoPropuesto + '</span>';
+                        });
+                        iaRegistrarOperacion(estadoAntes);
+                        iaRegistrarOperacion(editor.innerHTML);
+                        if (typeof detectarYSincronizarEntries === "function") {
+                            detectarYSincronizarEntries();
+                        }
+                        marcarCambio();
+                        setTimeout(function() {
+                            document.querySelectorAll(".ia-texto-modificado").forEach(function(el) {
+                                el.style.background = "";
+                                el.style.padding = "";
+                                el.style.borderRadius = "";
+                                el.className = "";
+                            });
+                        }, 3000);
+                    }
+                    btnContainer.innerHTML = '<span style="color:#16a34a; font-size:11px; font-weight:600;">✅ Cambio aplicado</span>';
+                    btnContainer.appendChild(document.createElement("br"));
+                    var btnDeshacer = document.createElement("button");
+                    btnDeshacer.style.cssText = "font-size:11px; padding:4px 8px; background:none; border:1px solid #d1d5db; border-radius:4px; cursor:pointer; margin-top:4px;";
+                    btnDeshacer.textContent = "↶ Deshacer";
+                    btnDeshacer.onclick = function() { iaDeshacer(); };
+                    btnContainer.appendChild(btnDeshacer);
+                };
+
+                var btnCancelar = document.createElement("button");
+                btnCancelar.className = "btn btn-secundario";
+                btnCancelar.style.cssText = "font-size:11px; padding:5px 10px;";
+                btnCancelar.textContent = "CANCELAR";
+                btnCancelar.onclick = function() {
+                    btnContainer.innerHTML = '<span style="color:#64748b; font-size:11px;">Cambio cancelado</span>';
+                };
+
+                btnContainer.appendChild(btnAplicar);
+                btnContainer.appendChild(btnCancelar);
+                divBubble.appendChild(btnContainer);
+            }
         }
     }
 
-    historialChat.push({ rol: "ia", contenido: respuesta });
+    historialChat.push({ rol: "ia", contenido: respuestaLimpia || respuesta });
     guardarChatLocal();
     contChat.scrollTop = contChat.scrollHeight;
+}
+
+function iaEjecutarAccion(accion, divBubble) {
+    var tipo = accion.accion || "";
+    if (tipo === "crear_documento") {
+        iaCrearDocumentoEnEditor(accion, divBubble);
+    } else if (tipo === "modificar_entry") {
+        iaModificarEntry(accion.key || "", accion.value || "", divBubble);
+    } else if (tipo === "editar_texto") {
+        iaEditarTexto(accion.buscar || "", accion.reemplazar || "", divBubble);
+    } else if (tipo === "agregar_texto") {
+        iaAgregarTexto(accion.ubicacion || "", accion.referencia || "", accion.texto || "", divBubble);
+    } else if (tipo === "eliminar_texto") {
+        iaEliminarTexto(accion.buscar || "", divBubble);
+    }
+}
+
+function iaCrearDocumentoEnEditor(accion, divBubble) {
+    var editor = document.getElementById("editor");
+    if (!editor) return;
+
+    var estadoAntes = iaGuardarEstado();
+    if (estadoAntes) iaRegistrarOperacion(estadoAntes);
+
+    var texto = accion.texto || "";
+    var lineas = texto.split("\n");
+    var html = lineas.map(function(l) {
+        if (!l.trim()) return "<br>";
+        return "<p>" + escapeHTML(l) + "</p>";
+    }).join("");
+    editor.innerHTML = html;
+
+    if (accion.titulo) {
+        docBaseSeleccionado = {
+            nombre: accion.titulo,
+            categoria: accion.categoria || "OTROS",
+            subcategoria: accion.subcategoria || "",
+            procedimiento: accion.procedimiento || ""
+        };
+    }
+
+    if (typeof detectarYSincronizarEntries === "function") {
+        detectarYSincronizarEntries();
+    }
+    marcarCambio();
+    iaRegistrarOperacion(editor.innerHTML);
+
+    document.getElementById("panelEditor").style.display = "flex";
+
+    var btns = document.createElement("div");
+    btns.style.cssText = "display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;";
+    var lbl = document.createElement("span");
+    lbl.style.cssText = "color:#16a34a; font-size:11px; font-weight:600; align-self:center;";
+    lbl.textContent = "✅ Documento creado en el editor";
+    btns.appendChild(lbl);
+
+    var btnDesc = document.createElement("button");
+    btnDesc.className = "btn btn-primary";
+    btnDesc.style.cssText = "font-size:11px; padding:5px 10px; background:#d97706;";
+    btnDesc.textContent = "💾 DESCARGAR DOCX";
+    btnDesc.onclick = function() { descargarDocx(); };
+    btns.appendChild(btnDesc);
+
+    var btnGuardar = document.createElement("button");
+    btnGuardar.className = "btn btn-primary";
+    btnGuardar.style.cssText = "font-size:11px; padding:5px 10px; background:#7c3aed;";
+    btnGuardar.textContent = "📁 GUARDAR COMO BASE";
+    btnGuardar.onclick = function() { iaGuardarComoBase(); };
+    btns.appendChild(btnGuardar);
+
+    divBubble.appendChild(btns);
+}
+
+function iaModificarEntry(key, value, divBubble) {
+    if (!key) return;
+    var editor = document.getElementById("editor");
+
+    if (!configuracionActual) configuracionActual = {};
+    if (!configuracionActual.dynamicEntries) configuracionActual.dynamicEntries = {};
+    var entry = configuracionActual.dynamicEntries[key];
+    if (!entry) {
+        configuracionActual.dynamicEntries[key] = {
+            variable: key,
+            nombre: nombreAmigableVariable(key),
+            color: asignarColorDinamico ? asignarColorDinamico(key) : "#D1C4E9",
+            instances: 0,
+            order: Object.keys(configuracionActual.dynamicEntries).length,
+            value: value,
+            placeholder: "[" + key + "]"
+        };
+        entry = configuracionActual.dynamicEntries[key];
+    }
+
+    var estadoAntes = iaGuardarEstado();
+    if (estadoAntes) iaRegistrarOperacion(estadoAntes);
+
+    entry.value = value;
+
+    if (editor) {
+        var spans = editor.querySelectorAll('span[data-key="' + key + '"]');
+        spans.forEach(function(span) {
+            span.textContent = value;
+            if (value.trim()) {
+                span.style.background = "#bbf7d0";
+            } else {
+                span.style.background = entry.color || "#D1C4E9";
+            }
+        });
+        marcarCambio();
+        iaRegistrarOperacion(editor.innerHTML);
+    }
+
+    if (typeof construirListaEntriesPlana === "function" && configuracionActual.dynamicEntries) {
+        var vars = Object.keys(configuracionActual.dynamicEntries);
+        construirListaEntriesPlana(vars, {}, {});
+    }
+
+    var btns = document.createElement("div");
+    btns.style.cssText = "margin-top:8px;";
+    var lbl = document.createElement("span");
+    lbl.style.cssText = "color:#16a34a; font-size:11px; font-weight:600;";
+    lbl.textContent = "✅ Entry [" + key + "] = \"" + value + "\"";
+    btns.appendChild(lbl);
+    divBubble.appendChild(btns);
+}
+
+function iaEditarTexto(buscar, reemplazar, divBubble) {
+    var editor = document.getElementById("editor");
+    if (!editor || !buscar) return;
+
+    var estadoAntes = iaGuardarEstado();
+    if (estadoAntes) iaRegistrarOperacion(estadoAntes);
+
+    var escaped = buscar.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+    var re = new RegExp(escaped, "g");
+
+    if (re.test(editor.innerHTML)) {
+        editor.innerHTML = editor.innerHTML.replace(re, function(match) {
+            return '<span class="ia-texto-modificado" style="background:#dcfce7; padding:1px 2px; border-radius:2px;">' + reemplazar + '</span>';
+        });
+        iaRegistrarOperacion(editor.innerHTML);
+        if (typeof detectarYSincronizarEntries === "function") {
+            detectarYSincronizarEntries();
+        }
+        marcarCambio();
+        setTimeout(function() {
+            document.querySelectorAll(".ia-texto-modificado").forEach(function(el) {
+                el.style.background = "";
+                el.style.padding = "";
+                el.style.borderRadius = "";
+                el.className = "";
+            });
+        }, 3000);
+    }
+
+    var btns = document.createElement("div");
+    btns.style.cssText = "margin-top:8px;";
+    var lbl = document.createElement("span");
+    lbl.style.cssText = "color:#16a34a; font-size:11px; font-weight:600;";
+    lbl.textContent = "✅ Texto modificado en el editor";
+    btns.appendChild(lbl);
+    divBubble.appendChild(btns);
+}
+
+function iaAgregarTexto(ubicacion, referencia, texto, divBubble) {
+    var editor = document.getElementById("editor");
+    if (!editor || !texto) return;
+
+    var estadoAntes = iaGuardarEstado();
+    if (estadoAntes) iaRegistrarOperacion(estadoAntes);
+
+    var nuevoP = document.createElement("p");
+    nuevoP.textContent = texto;
+    nuevoP.style.cssText = "background:#dcfce7; padding:1px 2px; border-radius:2px;";
+
+    if (referencia && ubicacion) {
+        var spans = editor.querySelectorAll("span[data-key]");
+        var parrafos = editor.querySelectorAll("p");
+        var insertarDespues = null;
+
+        for (var i = 0; i < parrafos.length; i++) {
+            if (parrafos[i].innerText && parrafos[i].innerText.indexOf(referencia) !== -1) {
+                insertarDespues = parrafos[i];
+                break;
+            }
+        }
+        if (!insertarDespues) {
+            for (var j = 0; j < spans.length; j++) {
+                if (spans[j].getAttribute("data-key") === referencia || spans[j].textContent === referencia) {
+                    insertarDespues = spans[j].closest("p") || spans[j];
+                    break;
+                }
+            }
+        }
+
+        if (insertarDespues && ubicacion === "despues_de") {
+            if (insertarDespues.nextSibling) {
+                editor.insertBefore(nuevoP, insertarDespues.nextSibling);
+            } else {
+                editor.appendChild(nuevoP);
+            }
+        } else if (insertarDespues && ubicacion === "antes_de") {
+            editor.insertBefore(nuevoP, insertarDespues);
+        } else {
+            editor.appendChild(nuevoP);
+        }
+    } else {
+        editor.appendChild(nuevoP);
+    }
+
+    iaRegistrarOperacion(editor.innerHTML);
+    if (typeof detectarYSincronizarEntries === "function") {
+        detectarYSincronizarEntries();
+    }
+    marcarCambio();
+    setTimeout(function() {
+        nuevoP.style.background = "";
+        nuevoP.style.padding = "";
+        nuevoP.style.borderRadius = "";
+    }, 3000);
+
+    var btns = document.createElement("div");
+    btns.style.cssText = "margin-top:8px;";
+    var lbl = document.createElement("span");
+    lbl.style.cssText = "color:#16a34a; font-size:11px; font-weight:600;";
+    lbl.textContent = "✅ Texto agregado al editor";
+    btns.appendChild(lbl);
+    divBubble.appendChild(btns);
+}
+
+function iaEliminarTexto(buscar, divBubble) {
+    var editor = document.getElementById("editor");
+    if (!editor || !buscar) return;
+
+    var estadoAntes = iaGuardarEstado();
+    if (estadoAntes) iaRegistrarOperacion(estadoAntes);
+
+    var parrafos = editor.querySelectorAll("p");
+    var eliminado = false;
+
+    for (var i = 0; i < parrafos.length; i++) {
+        if (parrafos[i].innerText && parrafos[i].innerText.indexOf(buscar) !== -1) {
+            parrafos[i].style.background = "#fee2e2";
+            setTimeout(function(p) {
+                p.parentNode && p.parentNode.removeChild(p);
+            }.bind(null, parrafos[i]), 500);
+            eliminado = true;
+            break;
+        }
+    }
+
+    setTimeout(function() {
+        iaRegistrarOperacion(editor.innerHTML);
+        if (typeof detectarYSincronizarEntries === "function") {
+            detectarYSincronizarEntries();
+        }
+        marcarCambio();
+    }, 600);
+
+    var btns = document.createElement("div");
+    btns.style.cssText = "margin-top:8px;";
+    var lbl = document.createElement("span");
+    lbl.style.cssText = "color:" + (eliminado ? "#16a34a" : "#d97706") + "; font-size:11px; font-weight:600;";
+    lbl.textContent = eliminado ? "✅ Texto eliminado del editor" : "⚠️ No se encontró el texto";
+    btns.appendChild(lbl);
+    divBubble.appendChild(btns);
+}
+
+var _iaDocGenResultado = null;
+
+async function iaCrearDocumento() {
+    var input = document.getElementById("chatMensaje");
+    var msg = (input.value || "").trim();
+    if (!msg) {
+        msg = prompt("Describe el documento que necesitas:", "Necesito una demanda de pensión alimenticia para dos niños.");
+        if (!msg) return;
+    }
+
+    input.value = "";
+    agregarBurbujaChat("usuario", msg, true);
+
+    var cont = document.getElementById("chatIA");
+    var div = document.createElement("div");
+    div.style.cssText = "margin:6px 0; padding:8px 10px; border-radius:8px; white-space:pre-wrap; word-break:break-word; font-size:13px; background:#f0fdf4; border:1px solid #86efac;";
+    div.innerHTML = "📄 Generando documento... <span class='ia-cursor'>▌</span>";
+    cont.appendChild(div);
+    cont.scrollTop = cont.scrollHeight;
+
+    try {
+        var resp = await fetch("/api/ia/crear-documento", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ instruccion: msg, historial: historialChat.slice(-10) })
+        });
+
+        if (!resp.ok) {
+            var err = await resp.json().catch(() => ({}));
+            throw new Error(err.detail || "Error al generar documento");
+        }
+
+        var result = await resp.json();
+        _iaDocGenResultado = result;
+
+        var entriesHtml = "";
+        if (result.entries_pendientes && result.entries_pendientes.length > 0) {
+            entriesHtml = "\n\n📋 Entries pendientes:\n" + result.entries_pendientes.map(function(e) { return "  • " + e; }).join("\n");
+        }
+
+        div.innerHTML = "📄 <b>Documento generado:</b> " + escapeHTML(result.titulo) +
+            "\n\n📂 " + escapeHTML(result.categoria) + " › " + escapeHTML(result.subcategoria) +
+            entriesHtml +
+            "\n\n✅ Listo para previsualizar o guardar.";
+
+        var btnContainer = document.createElement("div");
+        btnContainer.className = "ia-action-buttons";
+        btnContainer.style.cssText = "display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;";
+
+        var btnPreview = document.createElement("button");
+        btnPreview.className = "btn btn-primary";
+        btnPreview.style.cssText = "font-size:11px; padding:5px 10px; background:#2563eb;";
+        btnPreview.textContent = "👁 PREVISUALIZAR";
+        btnPreview.onclick = function() { iaPrevisualizarDocumento(); };
+
+        var btnEditar = document.createElement("button");
+        btnEditar.className = "btn btn-primary";
+        btnEditar.style.cssText = "font-size:11px; padding:5px 10px; background:#059669;";
+        btnEditar.textContent = "✏️ EDITAR";
+        btnEditar.onclick = function() { iaCargarEnEditor(); };
+
+        var btnDescargar = document.createElement("button");
+        btnDescargar.className = "btn btn-primary";
+        btnDescargar.style.cssText = "font-size:11px; padding:5px 10px; background:#d97706;";
+        btnDescargar.textContent = "💾 DESCARGAR DOCX";
+        btnDescargar.onclick = function() { iaDescargarDocxGenerado(); };
+
+        var btnGuardar = document.createElement("button");
+        btnGuardar.className = "btn btn-primary";
+        btnGuardar.style.cssText = "font-size:11px; padding:5px 10px; background:#7c3aed;";
+        btnGuardar.textContent = "📁 GUARDAR COMO BASE";
+        btnGuardar.onclick = function() { iaGuardarComoBase(); };
+
+        btnContainer.appendChild(btnPreview);
+        btnContainer.appendChild(btnEditar);
+        btnContainer.appendChild(btnDescargar);
+        btnContainer.appendChild(btnGuardar);
+        div.appendChild(btnContainer);
+
+        historialChat.push({ rol: "ia", contenido: "Documento generado: " + result.titulo });
+        guardarChatLocal();
+
+    } catch (error) {
+        console.error("Error creando documento:", error);
+        div.innerHTML = "❌ Error: " + escapeHTML(error.message);
+    }
+
+    cont.scrollTop = cont.scrollHeight;
+}
+
+function iaPrevisualizarDocumento() {
+    if (!_iaDocGenResultado || !_iaDocGenResultado.texto) return;
+    var texto = _iaDocGenResultado.texto;
+    var html = textoPlanoToHtml(texto);
+    var editor = document.getElementById("editor");
+    if (editor) {
+        editor.innerHTML = html;
+        document.getElementById("panelEditor").style.display = "flex";
+    }
+}
+
+function iaCargarEnEditor() {
+    if (!_iaDocGenResultado || !_iaDocGenResultado.texto) return;
+    var texto = _iaDocGenResultado.texto;
+    var html = textoPlanoToHtml(texto);
+    var editor = document.getElementById("editor");
+    if (editor) {
+        editor.innerHTML = html;
+        document.getElementById("panelEditor").style.display = "flex";
+        if (typeof detectarYSincronizarEntries === "function") {
+            detectarYSincronizarEntries();
+        }
+        marcarCambio();
+    }
+}
+
+function iaDescargarDocxGenerado() {
+    if (!_iaDocGenResultado || !_iaDocGenResultado.docx_base64) return;
+    var bytes = Uint8Array.from(atob(_iaDocGenResultado.docx_base64), function(c) { return c.charCodeAt(0); });
+    var blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+    var filename = _iaDocGenResultado.filename || "documento.docx";
+
+    if (window.showSaveFilePicker) {
+        window.showSaveFilePicker({
+            suggestedName: filename,
+            types: [{ description: "Documento Word", accept: { "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"] } }]
+        }).then(function(handle) {
+            return handle.createWritable();
+        }).then(function(writable) {
+            return writable.write(blob).then(function() { return writable.close(); });
+        }).catch(function(e) {
+            if (e.name !== "AbortError") {
+                var url = URL.createObjectURL(blob);
+                var a = document.createElement("a"); a.href = url; a.download = filename;
+                document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+            }
+        });
+    } else {
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement("a"); a.href = url; a.download = filename;
+        document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    }
+}
+
+function iaGuardarComoBase() {
+    if (!_iaDocGenResultado) return;
+    document.getElementById("modalGenBaseNombre").value = _iaDocGenResultado.titulo || "";
+    document.getElementById("modalGenBaseCategoria").value = _iaDocGenResultado.categoria || "OTROS";
+    document.getElementById("modalGenBaseSubcategoria").value = _iaDocGenResultado.subcategoria || "";
+    document.getElementById("modalGenBaseProcedimiento").value = _iaDocGenResultado.procedimiento || "";
+    document.getElementById("modalGenBaseDescripcion").value = "";
+    document.getElementById("modalGenBase").classList.add("abierto");
+}
+
+function cerrarModalGenBase() {
+    document.getElementById("modalGenBase").classList.remove("abierto");
+}
+
+async function confirmarGuardarGenBase() {
+    if (!_iaDocGenResultado) return;
+    var nombre = document.getElementById("modalGenBaseNombre").value.trim();
+    var categoria = document.getElementById("modalGenBaseCategoria").value.trim();
+    var subcategoria = document.getElementById("modalGenBaseSubcategoria").value.trim();
+    var procedimiento = document.getElementById("modalGenBaseProcedimiento").value.trim();
+    var descripcion = document.getElementById("modalGenBaseDescripcion").value.trim();
+
+    if (!nombre) { alert("Ingrese un nombre."); return; }
+
+    var bytes = Uint8Array.from(atob(_iaDocGenResultado.docx_base64), function(c) { return c.charCodeAt(0); });
+    var blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+
+    var formData = new FormData();
+    formData.append("file", blob, _iaDocGenResultado.filename || "documento.docx");
+    formData.append("nombre", nombre);
+    formData.append("categoria", categoria || "OTROS");
+    formData.append("subcategoria", subcategoria || "");
+    formData.append("procedimiento", procedimiento || "");
+    formData.append("descripcion", descripcion || "");
+
+    try {
+        cerrarModalGenBase();
+        var resp = await fetch("/api/documentos-base/subir", { method: "POST", body: formData });
+        if (!resp.ok) throw new Error("Error al guardar");
+        await agregarATaxonomia(categoria, subcategoria || null, procedimiento || null);
+        await cargarDocumentosBase();
+        alert("Documento guardado como documento base.");
+    } catch (e) {
+        alert("Error: " + e.message);
+    }
 }
 
 var _iaSeleccionAnterior = "";
@@ -2794,7 +3315,7 @@ async function guardarEnServidor() {
 
 async function descargarDocx() {
     try {
-        const texto = editorAPlano();
+        const texto = editorAPlanoLimpio();
 
         const response = await fetch("/exportar-docx", {
             method: "POST",
@@ -3473,6 +3994,31 @@ function editorAPlano() {
         lineas.pop();
     }
     return lineas.join("\n");
+}
+
+function editorAPlanoLimpio() {
+    var texto = editorAPlano();
+    var entries = (configuracionActual && configuracionActual.dynamicEntries) || {};
+    var keys = Object.keys(entries);
+    for (var i = 0; i < keys.length; i++) {
+        var key = keys[i];
+        var entry = entries[key];
+        var val = (entry && entry.value != null) ? String(entry.value).trim() : "";
+        var marcador = "[" + key + "]";
+        if (val) {
+            while (texto.indexOf(marcador) !== -1) {
+                texto = texto.replace(marcador, val);
+            }
+        } else {
+            while (texto.indexOf(marcador) !== -1) {
+                texto = texto.replace(marcador, "");
+            }
+        }
+    }
+    texto = texto.replace(/\[[A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ0-9_]*\]/g, "");
+    texto = texto.replace(/  +/g, " ");
+    texto = texto.replace(/ \n/g, "\n").replace(/\n /g, "\n");
+    return texto.trim();
 }
 
 function textoPlanoToHtml(texto) {

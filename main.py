@@ -15,6 +15,7 @@ import os
 import sys
 import re
 import datetime
+import base64
 
 # 🔧 FIX: la consola de Windows (cp1252) no puede imprimir emojis/acentos
 # raros y UN CRASH de print() rompía el análisis completo (la IA devolvía
@@ -283,6 +284,7 @@ async def chat_ia_stream(data: dict = Body(...)):
     mensaje = data.get("mensaje", "")
     historial = data.get("historial", [])
     instrucciones = data.get("instrucciones", "")
+    contexto_documento = data.get("contexto_documento", None)
 
     if not mensaje or not mensaje.strip():
         raise HTTPException(status_code=400, detail="Mensaje vacío")
@@ -291,7 +293,7 @@ async def chat_ia_stream(data: dict = Body(...)):
         historial = []
 
     def event_generator():
-        for chunk in chatear_con_ia_streaming(mensaje.strip(), historial, instrucciones):
+        for chunk in chatear_con_ia_streaming(mensaje.strip(), historial, instrucciones, contexto_documento):
             yield f"data: {chunk}\n\n"
 
     return StreamingResponse(
@@ -299,6 +301,54 @@ async def chat_ia_stream(data: dict = Body(...)):
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
     )
+
+
+@app.post("/api/ia/crear-documento")
+async def crear_documento_ia_endpoint(data: dict = Body(...)):
+    from ia import generar_documento_ia
+    from docx import Document as DocxDocument
+    import io
+
+    instruccion = data.get("instruccion", "")
+    historial = data.get("historial", [])
+
+    if not instruccion.strip():
+        raise HTTPException(status_code=400, detail="Instrucción vacía")
+
+    resultado = generar_documento_ia(instruccion, historial)
+
+    if not resultado.get("ok"):
+        raise HTTPException(status_code=500, detail=resultado.get("error", "Error generando documento"))
+
+    texto = resultado.get("texto", "")
+    if not texto:
+        raise HTTPException(status_code=500, detail="La IA no generó texto")
+
+    docx_doc = DocxDocument()
+    for linea in texto.split("\n"):
+        docx_doc.add_paragraph(linea)
+
+    buf = io.BytesIO()
+    docx_doc.save(buf)
+    file_bytes = buf.getvalue()
+
+    titulo = resultado.get("titulo", "Documento Jurídico")
+    nombre_limpio = re.sub(r'[<>:"/\\|?*]', '', titulo).strip()
+    if not nombre_limpio:
+        nombre_limpio = "documento_generado"
+    filename = nombre_limpio + ".docx"
+
+    return {
+        "ok": True,
+        "texto": texto,
+        "titulo": titulo,
+        "categoria": resultado.get("categoria", "OTROS"),
+        "subcategoria": resultado.get("subcategoria", ""),
+        "procedimiento": resultado.get("procedimiento", "NO APLICA"),
+        "entries_pendientes": resultado.get("entries_pendientes", []),
+        "docx_base64": base64.b64encode(file_bytes).decode("utf-8"),
+        "filename": filename
+    }
 
 
 @app.post("/reanalizar")

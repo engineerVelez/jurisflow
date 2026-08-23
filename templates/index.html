@@ -231,8 +231,8 @@
         }
         .campo input::placeholder { color: #94a3b8; }
 
-        /* ===== FLAT ENTRY LIST (v142) ===== */
-        .v142-hidden { display: none !important; }
+        /* ===== FLAT ENTRY LIST (v144) ===== */
+        .v144-hidden { display: none !important; }
         #contenedorEntriesFijos .pagina-entries { display: none !important; }
         #contenedorEntriesFijos .legend { display: none !important; }
         #contenedorEntriesFijos .campo { display: none !important; }
@@ -282,13 +282,13 @@
             flex-shrink: 0;
         }
         #listaEntriesPlana .entry-item .entry-contador:hover { transform: scale(1.15); }
-        #listaEntriesPlana .v142-empty {
+        #listaEntriesPlana .v144-empty {
             color: #94a3b8;
             font-size: 12px;
             padding: 16px 0;
             text-align: center;
         }
-        #listaEntriesPlana .v142-seccion-titulo {
+        #listaEntriesPlana .v144-seccion-titulo {
             font-size: 11px;
             font-weight: 700;
             color: #64748b;
@@ -696,7 +696,7 @@
 
 <div class="header">
     <div>
-        <h1>⚖️ Replace Docs JuRidocs <span id="version-badge">v142</span></h1>
+        <h1>⚖️ Replace Docs JuRidocs <span id="version-badge">v144</span></h1>
         <div class="sub">Análisis automático de documentos jurídicos</div>
     </div>
     <button class="btn btn-secundario" onclick="abrirConfig()">⚙ Configuración IA</button>
@@ -1834,17 +1834,17 @@
 
     </div> <!-- fin contenedorEntriesFijos -->
 
-        <!-- v142: FLAT ENTRY LIST -->
+        <!-- v144: FLAT ENTRY LIST -->
         <div id="listaEntriesPlana">
-            <div class="v142-seccion-titulo">ENTRIES</div>
-            <div id="v142EntriesContainer">
-                <p class="v142-empty">Abra un documento base para detectar entries.</p>
+            <div class="v144-seccion-titulo">ENTRIES</div>
+            <div id="v144EntriesContainer">
+                <p class="v144-empty">Abra un documento base para detectar entries.</p>
             </div>
         </div>
-        <!-- fin v142 -->
+        <!-- fin v144 -->
 
         <!-- BOTONES DE NAVEGACION -->
-        <div class="barra-acciones v142-hidden">
+        <div class="barra-acciones v144-hidden">
             <div class="nav-der">
                 <button class="btn btn-nav" onclick="anterior()">⬅ Anterior</button>
                 <button class="btn btn-nav" onclick="siguiente()">Siguiente ➡</button>
@@ -1893,7 +1893,7 @@
 </div>
 
 <script src="/static/variables_maestro.js?v=3"></script>
-<script src="/static/script.js?v=142"></script>
+<script src="/static/script.js?v=144"></script>
 
 
 <!-- CONFIG -->
@@ -1923,17 +1923,51 @@
     <button onclick="iaRehacer()" style="font-size:11px; padding:4px 8px; background:none; border:1px solid #d1d5db; border-radius:4px; cursor:pointer;" title="Rehacer (Ctrl+Y)">↷ Rehacer</button>
 </div>
 
-<label style="font-size:13px; font-weight:600; display:block; margin-bottom:6px;">
-    Instrucciones adicionales
-</label>
-<textarea id="promptIA" placeholder="Ej.: En demandas de alimentos, el demandado suele ser el padre..."></textarea>
+<button class="btn btn-primary" onclick="abrirModalConfigIA()" style="width:100%; margin-bottom:14px; background:#6366f1;">⚙️ CONFIGURAR IA</button>
 
-<br><br>
-
-<button class="btn btn-primary" onclick="guardarPrompt()">Guardar instrucciones</button>
+<button class="btn btn-primary" onclick="guardarPrompt()" style="width:100%; margin-bottom:14px;">💾 Guardar instrucciones</button>
 <button class="btn btn-nav" onclick="cerrarConfig()">Cerrar</button>
 
 </div>
+
+<!-- MODAL CONFIGURAR IA -->
+<div id="modalConfigIA" class="modal-overlay">
+<div style="background:#fff; border-radius:12px; padding:24px; width:480px; max-width:95vw; box-shadow:0 8px 32px rgba(0,0,0,0.18);">
+    <h3 style="margin:0 0 16px; font-size:18px; color:#1e293b;">⚙️ Configurar IA</h3>
+    <p style="font-size:12px; color:#64748b; margin:0 0 12px;">
+        Instrucciones adicionales para el asistente. La IA las utilizará como contexto al responder y al crear documentos.
+    </p>
+    <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Instrucciones adicionales</label>
+    <textarea id="promptIAModal" rows="8" style="width:100%; padding:10px; border:1px solid #d1d5db; border-radius:6px; font-size:13px; resize:vertical; box-sizing:border-box;" placeholder="Ej.: Actúa como asistente jurídico especializado en documentos del Ecuador. Utiliza lenguaje formal. No inventes datos. Cuando falte información crea un Entry."></textarea>
+    <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:16px;">
+        <button class="btn btn-nav" style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca;" onclick="restablecerInstruccionesIA()">Restablecer</button>
+        <button class="btn btn-nav" onclick="cerrarModalConfigIA()">Cancelar</button>
+        <button class="btn btn-primary" onclick="guardarInstruccionesIA()">Guardar</button>
+    </div>
+</div>
+</div>
+
+<!-- MODAL GUARDAR DOCUMENTO GENERADO COMO BASE -->
+<div id="modalGenBase" class="modal-overlay">
+<div style="background:#fff; border-radius:12px; padding:24px; width:420px; max-width:95vw; box-shadow:0 8px 32px rgba(0,0,0,0.18);">
+    <h3 style="margin:0 0 16px; font-size:18px; color:#1e293b;">📁 Guardar como Documento Base</h3>
+    <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Nombre</label>
+    <input id="modalGenBaseNombre" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:6px; margin-bottom:12px; font-size:13px;">
+    <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Categoría</label>
+    <input id="modalGenBaseCategoria" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:6px; margin-bottom:12px; font-size:13px;">
+    <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Subcategoría</label>
+    <input id="modalGenBaseSubcategoria" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:6px; margin-bottom:12px; font-size:13px;">
+    <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Procedimiento</label>
+    <input id="modalGenBaseProcedimiento" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:6px; margin-bottom:12px; font-size:13px;">
+    <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Descripción</label>
+    <input id="modalGenBaseDescripcion" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:6px; margin-bottom:16px; font-size:13px;">
+    <div style="display:flex; gap:8px; justify-content:flex-end;">
+        <button class="btn btn-nav" onclick="cerrarModalGenBase()">Cancelar</button>
+        <button class="btn btn-primary" onclick="confirmarGuardarGenBase()">Guardar</button>
+    </div>
+</div>
+</div>
+
 
 </body>
 </html>

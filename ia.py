@@ -1090,21 +1090,134 @@ def calcular_confianza(datos):
 # agrega un modo conversacional (también fijo en el servidor).
 
 MODO_CHAT = """
+==================================================
+MODO ASISTENTE JURÍDICO — JURISFLOW v144
+==================================================
+
+Eres un asistente jurídico inteligente integrado al editor de documentos
+de JurisFlow. Puedes conversar, crear documentos, modificar entries,
+editar texto y generar DOCX.
 
 ==================================================
-MODO CHAT (agregado automáticamente por el servidor)
+DETECCIÓN DE INTENCIÓN
 ==================================================
-Ahora estás en modo conversación con el usuario (no analizando un
-documento). Responde en español, de forma clara y breve.
 
-Cuando el usuario te pida corregir o ajustar el análisis de
-documentos, redacta una instrucción corta, concreta y en imperativo,
-que comience EXACTAMENTE con la línea:
+Analiza cada mensaje del usuario y determina la intención:
 
-INSTRUCCIÓN PARA ANÁLISIS:
+A) CONVERSACIÓN/PREGUNTA — Responder en el chat normalmente.
+   Ejemplo: "¿Qué documentos necesito para presentar esta demanda?"
 
-y después escribe la instrucción. Esa instrucción será añadida a
-futuros análisis de documentos.
+B) CREAR DOCUMENTO — El usuario quiere un documento nuevo.
+   Ejemplo: "Necesito una demanda de alimentos."
+
+C) MODIFICAR ENTRY — El usuario quiere cambiar un dato.
+   Ejemplo: "El actor es Juan Pérez." / "Cambia el actor por Carlos."
+
+D) EDITAR TEXTO — El usuario quiere modificar el documento.
+   Ejemplo: "Agrega una sección de hechos."
+
+E) GENERAR DOCX — El usuario quiere descargar.
+   Ejemplo: "Genera el documento."
+
+F) GUARDAR COMO BASE — El usuario quiere guardar en repositorio.
+
+==================================================
+REGLAS GENERALES
+==================================================
+
+1. NUNCA inventes nombres, cédulas, direcciones, fechas ni datos personales.
+   Cuando falte información, usa marcadores [VARIABLE_MAYUSCULA].
+2. Responde de forma natural, conversacional y clara.
+3. Cuando modifiques el documento, explica qué haces paso a paso.
+4. Respeta las instrucciones adicionales del usuario.
+5. Conoce el contexto del documento actual (entries, valores, categoría).
+6. Cuando el usuario te dé un dato, identifica a qué entry corresponde.
+
+==================================================
+COMO MANEJAR CADA ACCIÓN
+==================================================
+
+--- CREAR DOCUMENTO ---
+Cuando el usuario pida crear un documento:
+1. Identifica tipo (demanda, contestación, recurso, etc.) y materia.
+2. Genera texto completo con marcadores [VARIABLE] para datos faltantes.
+3. Estructura jurídica: encabezado, hechos, fundamentos, petitorio, cierre.
+4. NO inventes datos personales — usa marcadores.
+5. Responde con explicación + bloque de acción (ver formato abajo).
+
+--- MODIFICAR ENTRY ---
+Cuando el usuario dé un dato (nombre, cédula, etc.):
+1. Identifica qué entry corresponde (NOMBRE_ACTOR_1, CEDULA_ACTOR_1, etc.).
+2. Si hay múltiples candidatos, pregunta cuál.
+3. Actualiza el valor.
+4. Responde con explicación + bloque de acción.
+
+--- EDITAR TEXTO ---
+Cuando el usuario quiera modificar el documento:
+1. Identifica el texto a cambiar.
+2. Propón el cambio.
+3. Usa formato ANTES/DESPUÉS para ediciones de texto.
+
+--- CONVERSACIÓN ---
+Para preguntas generales, responde directamente en el chat.
+NO modifiques el documento a menos que el usuario lo pida.
+
+==================================================
+BLOQUES DE ACCIÓN
+==================================================
+
+Cuando necesites realizar una acción sobre el documento, responde
+con una explicación conversacional Y AL FINAL agrega un bloque
+oculto en EXACTAMENTE este formato:
+
+<!--JURIS_ACTION{"accion":"tipo","datos":{...}}-->
+
+NUNCA modifiques el formato del bloque. Siempre en una sola línea.
+El bloque será procesado automáticamente por el sistema.
+
+--- ACCIONES DISPONIBLES ---
+
+1. crear_documento:
+<!--JURIS_ACTION{"accion":"crear_documento","titulo":"Demanda de Alimentos","categoria":"FAMILIA MUJER NIÑEZ Y ADOLESCENCIA","subcategoria":"Alimentos","procedimiento":"Juicio de Alimentos","texto":"TEXTO COMPLETO CON [MARCADORES]"}-->
+
+2. modificar_entry:
+<!--JURIS_ACTION{"accion":"modificar_entry","key":"NOMBRE_ACTOR_1","value":"Juan Pérez"}-->
+
+3. editar_texto:
+<!--JURIS_ACTION{"accion":"editar_texto","buscar":"texto original","reemplazar":"texto nuevo"}-->
+
+4. agregar_texto:
+<!--JURIS_ACTION{"accion":"agregar_texto","ubicacion":"despues_de","referencia":"HECHOS","texto":"\\nNUEVO PÁRRAFO AQUÍ"}-->
+
+5. eliminar_texto:
+<!--JURIS_ACTION{"accion":"eliminar_texto","buscar":"texto a eliminar"}-->
+
+==================================================
+NO INVENTAR DATOS
+==================================================
+
+Jamás inventes:
+- Nombres de personas
+- Números de cédula
+- Direcciones
+- Fechas específicas
+- Números de juicio
+- Ingresos o montos
+- Hechos concretos
+
+Cuando falte información, crea un entry [VARIABLE] o pregunta.
+
+==================================================
+CATEGORÍAS
+==================================================
+
+CIVIL, FAMILIA MUJER NIÑEZ Y ADOLESCENCIA, LABORAL, INQUILINATO,
+CONSTITUCIONAL, PENAL, TRÁNSITO, VIOLENCIA CONTRA LA MUJER Y MIEMBROS
+DEL NÚCLEO FAMILIAR, CONTENCIOSO ADMINISTRATIVO, CONTENCIOSO TRIBUTARIO,
+ADMINISTRATIVO, COACTIVAS, GARANTÍAS PENITENCIARIAS,
+ADOLESCENTES INFRACTORES, ARBITRAJE, CONTRATOS,
+OFICIOS Y ESCRITOS GENERALES, NORMATIVA Y LEGISLACIÓN,
+FORMATOS GENERALES, OTROS
 """
 
 
@@ -1163,10 +1276,11 @@ siempre al responder y al corregir documentos:
         return "Lo siento, hubo un error al hablar con la IA. Intenta de nuevo."
 
 
-def chatear_con_ia_streaming(mensaje, historial=None, instrucciones=""):
+def chatear_con_ia_streaming(mensaje, historial=None, instrucciones="", contexto_documento=None):
     """Generator que yieldea chunks de la respuesta de la IA para streaming.
 
     Yieldea dicts JSON serializados: {"chunk": "..."} o {"done": true} o {"error": "..."}
+    contexto_documento: dict con estado actual del documento (entries, editor_text, etc.)
     """
 
     contexto = PROMPT_PRINCIPAL + MODO_CHAT
@@ -1181,6 +1295,37 @@ El usuario configuró estas instrucciones para el análisis. RESPETALAS
 siempre al responder y al corregir documentos:
 
 {instrucciones.strip()}
+"""
+
+    if contexto_documento:
+        doc_texto = (contexto_documento.get("editor_text", "") or "")[:3000]
+        doc_entries = contexto_documento.get("entries", {}) or {}
+        doc_categoria = contexto_documento.get("categoria", "") or ""
+        doc_subcategoria = contexto_documento.get("subcategoria", "") or ""
+        doc_procedimiento = contexto_documento.get("procedimiento", "") or ""
+
+        entries_str = ""
+        for k, v in doc_entries.items():
+            val = v.get("value", "") if isinstance(v, dict) else ""
+            if val:
+                entries_str += f"  [{k}] = \"{val}\"\n"
+            else:
+                entries_str += f"  [{k}] = (vacio)\n"
+
+        contexto += f"""
+
+=================================================
+CONTEXTO DEL DOCUMENTO ACTUAL
+=================================================
+Categoria: {doc_categoria}
+Subcategoria: {doc_subcategoria}
+Procedimiento: {doc_procedimiento}
+
+Entries detectados y sus valores:
+{entries_str if entries_str else "  (No hay entries detectados)"}
+
+Primeros caracteres del documento:
+{doc_texto if doc_texto else "(No hay documento abierto en el editor)"}
 """
 
     mensajes = [
@@ -1403,4 +1548,102 @@ DOCUMENTO:
         print(f"⚠️ Error en detectar_variables: {e}")
 
     return []
+
+
+def generar_documento_ia(instruccion, historial=None):
+    """Genera el texto de un documento jurídico basado en la instrucción del usuario.
+
+    Devuelve un dict con: texto, titulo, categoria, subcategoria, procedimiento, entries_pendientes
+    """
+    contexto_doc = """Eres un experto en redacción de documentos jurídicos ecuatorianos.
+Tu tarea es GENERAR el TEXTO COMPLETO de un documento legal basado en la instrucción del usuario.
+
+REGLAS ABSOLUTAS:
+1. Genera el texto completo del documento con formato jurídico profesional.
+2. Para datos personales que NO te proporcionaron, usa marcadores [VARIABLE_MAYUSCULA].
+3. NUNCA inventes nombres, cédulas, direcciones, fechas ni datos personales.
+4. Los marcadores deben ser claros: [NOMBRE_ACTOR_1], [CEDULA_ACTOR_1], [DIRECCION_ACTOR_1], etc.
+5. Incluye la estructura completa: encabezado, hechos, fundamentos, petitorio, cierre.
+6. El documento debe ser válido jurídicamente para Ecuador.
+7. Al final, responde con un JSON entre ```json y ``` con esta estructura:
+{
+  "texto": "el texto completo del documento con marcadores",
+  "titulo": "título descriptivo del documento",
+  "categoria": "CATEGORÍA del documento",
+  "subcategoria": "subcategoría específica",
+  "procedimiento": "tipo de procedimiento",
+  "entries_pendientes": ["NOMBRE_ACTOR_1", "CEDULA_ACTOR_1", ...]
+}
+
+CATEGORÍAS DISPONIBLES:
+CIVIL, FAMILIA MUJER NIÑEZ Y ADOLESCENCIA, LABORAL, INQUILINATO,
+CONSTITUCIONAL, PENAL, TRÁNSITO, VIOLENCIA CONTRA LA MUJER Y MIEMBROS DEL NÚCLEO FAMILIAR,
+CONTENCIOSO ADMINISTRATIVO, CONTENCIOSO TRIBUTARIO, ADMINISTRATIVO, COACTIVAS,
+GARANTÍAS PENITENCIARIAS, ADOLESCENTES INFRACTORES, ARBITRAJE, CONTRATOS,
+OFICIOS Y ESCRITOS GENERALES, NORMATIVA Y LEGISLACIÓN, FORMATOS GENERALES, OTROS
+
+EJEMPLO de marcador correcto:
+[NOMBRE_ACTOR_1] = "Juan Pérez" (si el usuario lo dio)
+[NOMBRE_ACTOR_1] = "[NOMBRE_ACTOR_1]" (si falta → el sistema lo limpiará)
+
+FORMATO DE DOCUMENTO JURÍDICO ECUATORIANO:
+- Encabezado con jurisdicción y juzgado
+- Datos del actor/accionante
+- Datos del demandado
+- Hechos
+- Fundamentos de derecho
+- Petitorio
+- Cierre y firma"""
+
+    mensajes = [{"role": "system", "content": contexto_doc}]
+
+    for h in (historial or [])[-10:]:
+        rol = "user" if h.get("rol") == "usuario" else "assistant"
+        contenido = h.get("contenido", "")
+        if contenido:
+            mensajes.append({"role": rol, "content": contenido})
+
+    mensajes.append({"role": "user", "content": instruccion})
+
+    try:
+        response = client.chat.completions.create(
+            model="openai/gpt-oss-120b",
+            messages=mensajes,
+            temperature=0,
+            max_tokens=8000
+        )
+
+        contenido = response.choices[0].message.content.strip()
+
+        json_match = None
+        if "```json" in contenido:
+            json_match = contenido.split("```json")[1].split("```")[0].strip()
+        elif "```" in contenido:
+            json_match = contenido.split("```")[1].split("```")[0].strip()
+
+        if json_match:
+            resultado = json.loads(json_match)
+            return {
+                "ok": True,
+                "texto": resultado.get("texto", ""),
+                "titulo": resultado.get("titulo", "Documento Jurídico"),
+                "categoria": resultado.get("categoria", "OTROS"),
+                "subcategoria": resultado.get("subcategoria", ""),
+                "procedimiento": resultado.get("procedimiento", "NO APLICA"),
+                "entries_pendientes": resultado.get("entries_pendientes", [])
+            }
+
+        return {
+            "ok": True,
+            "texto": contenido,
+            "titulo": "Documento Jurídico",
+            "categoria": "OTROS",
+            "subcategoria": "",
+            "procedimiento": "NO APLICA",
+            "entries_pendientes": []
+        }
+
+    except Exception as e:
+        print(f"❌ Error en generar_documento_ia: {e}")
+        return {"ok": False, "error": str(e)}
 
