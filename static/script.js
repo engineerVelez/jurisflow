@@ -1086,7 +1086,7 @@ async function aplicarDatosIA(data) {
     configuracionActual = configuracionActual || {};
     configuracionActual.dynamicEntries = {};
     matchNavigationState = {};
-    var containerEntries = document.getElementById("v148EntriesContainer");
+    var containerEntries = document.getElementById("v149EntriesContainer");
     if (containerEntries) containerEntries.innerHTML = "";
 
     // 🔎 TRAZADO: valor que DEVOLVIÓ la IA para el documento ACTUAL
@@ -1303,6 +1303,10 @@ function abrirConfig() {
 
 function cerrarConfig() {
     document.getElementById("configPanel").style.display = "none";
+    if (_iaDocGenResultado && _iaDocGenBlob) {
+        var r = _iaDocGenResultado;
+        iaAbrirModalGuardado(r.titulo, r.categoria, r.subcategoria, r.procedimiento, r.descripcion);
+    }
 }
 
 var _iaInstruccionesDefault = "Actúa como asistente jurídico especializado en documentos del Ecuador. Utiliza lenguaje formal. No inventes datos. Cuando falte información crea un Entry.";
@@ -1888,7 +1892,6 @@ function iaGenerarDocxBlob(texto, titulo, categoria, subcategoria, procedimiento
             texto: texto,
             filename: (titulo || "documento") + ".docx"
         };
-        iaAbrirModalGuardado(titulo, categoria, subcategoria, procedimiento, descripcion);
     }).catch(function(err) {
         console.error("Error generando DOCX:", err);
     });
@@ -5278,13 +5281,13 @@ function sincronizarEntriesConDocumento(placeholdersDetectados, conteosEntradas)
 // ============================================================
 
 function recargarEntriesConFeedback() {
-    var titulo = document.querySelector(".v148-seccion-titulo span");
+    var titulo = document.querySelector(".v149-seccion-titulo span");
     if (titulo) titulo.textContent = "Detectando Entries...";
     setTimeout(function() {
         detectarYSincronizarEntries(true);
-        var t2 = document.querySelector(".v148-seccion-titulo span");
+        var t2 = document.querySelector(".v149-seccion-titulo span");
         if (t2) {
-            var count = document.querySelectorAll("#v148EntriesContainer .entry-item").length;
+            var count = document.querySelectorAll("#v149EntriesContainer .entry-item").length;
             t2.textContent = "ENTRIES (" + count + ")";
         }
     }, 50);
@@ -5295,7 +5298,7 @@ function detectarYSincronizarEntries(skipGuard) {
 
     var placeholders = detectarPlaceholdersDelDocumento();
     var vinculadas = detectarEntriesVinculadas();
-    var container = document.getElementById("v148EntriesContainer");
+    var container = document.getElementById("v149EntriesContainer");
     if (!container) return;
 
     if (!configuracionActual) configuracionActual = {};
@@ -5384,11 +5387,11 @@ function detectarYSincronizarEntries(skipGuard) {
 }
 
 function construirListaEntriesPlana(variables, placeholders, mapeo) {
-    var container = document.getElementById("v148EntriesContainer");
+    var container = document.getElementById("v149EntriesContainer");
     if (!container) return;
 
     if (!variables || variables.length === 0) {
-        container.innerHTML = '<p class="v148-empty">No se detectaron placeholders [VARIABLE] en el documento.</p>';
+        container.innerHTML = '<p class="v149-empty">No se detectaron placeholders [VARIABLE] en el documento.</p>';
         return;
     }
 
@@ -5398,7 +5401,7 @@ function construirListaEntriesPlana(variables, placeholders, mapeo) {
         return orderA - orderB;
     });
 
-    var html = '<div class="v148-seccion-titulo" style="display:flex; align-items:center; justify-content:space-between;"><span>ENTRIES (' + variables.length + ')</span> <button onclick="recargarEntriesConFeedback()" title="Recargar Entries" style="background:none; border:1px solid #d1d5db; border-radius:4px; cursor:pointer; font-size:14px; padding:2px 6px; line-height:1;">↻</button></div>';
+    var html = '<div class="v149-seccion-titulo" style="display:flex; align-items:center; justify-content:space-between;"><span>ENTRIES (' + variables.length + ')</span> <button onclick="recargarEntriesConFeedback()" title="Recargar Entries" style="background:none; border:1px solid #d1d5db; border-radius:4px; cursor:pointer; font-size:14px; padding:2px 6px; line-height:1;">↻</button></div>';
 
     variables.forEach(function(variable) {
         var de = configuracionActual.dynamicEntries[variable];
@@ -5570,7 +5573,7 @@ function actualizarContadorEntrada(variable, count) {
 
 function actualizarHeaderEntries(container) {
     var total = container.querySelectorAll(".entry-item").length;
-    var titulo = container.querySelector(".v148-seccion-titulo");
+    var titulo = container.querySelector(".v149-seccion-titulo");
     if (titulo) {
         var label = titulo.querySelector("span");
         if (label) label.textContent = "ENTRIES (" + total + ")";
@@ -5582,7 +5585,7 @@ function actualizarEntriesEnTiempoReal() {
 
     var placeholders = detectarPlaceholdersDelDocumento();
     var vinculadas = detectarEntriesVinculadas();
-    var container = document.getElementById("v148EntriesContainer");
+    var container = document.getElementById("v149EntriesContainer");
     if (!container) return;
 
     if (!configuracionActual) configuracionActual = {};
