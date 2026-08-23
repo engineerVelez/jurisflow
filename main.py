@@ -406,6 +406,8 @@ def reanalizar(data: dict = Body(...)):
 def exportar_docx(data: dict = Body(...)):
 
     texto = data.get("texto", "")
+    texto = texto.replace("\\r\\n", "\n").replace("\\n", "\n").replace("\r\n", "\n").replace("\r", "\n")
+    texto = texto.replace("  ", " ")
 
     doc = Document()
 

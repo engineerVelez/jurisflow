@@ -6,6 +6,16 @@ document.addEventListener("DOMContentLoaded", () => {
     if (b) b.textContent = "v" + VERSION_SCRIPT;
 });
 
+function normalizarSaltosDeLinea(texto) {
+    if (!texto) return "";
+    texto = texto.replace(/\\r\\n/g, "\n");
+    texto = texto.replace(/\\n/g, "\n");
+    texto = texto.replace(/\r\n/g, "\n");
+    texto = texto.replace(/\r/g, "\n");
+    texto = texto.replace(/  +/g, " ");
+    return texto;
+}
+
 console.log("SCRIPT NUEVO CARGADO");
 let textoBase = "";
 let documentoRestaurado = false;
@@ -1560,7 +1570,7 @@ function iaConstruirContexto() {
     var editor = document.getElementById("editor");
     var editorText = "";
     if (editor) {
-        editorText = (editor.innerText || editor.textContent || "").substring(0, 3000);
+        editorText = (editor.innerText || editor.textContent || "").substring(0, 6000);
     }
     var entries = {};
     if (configuracionActual && configuracionActual.dynamicEntries) {
@@ -1597,6 +1607,11 @@ async function enviarChatStream() {
     }
 
     iaStreamingActivo = true;
+
+    var editor = document.getElementById("editor");
+    if (editor && docBaseSeleccionado) {
+        iaMostrarAnimacion("✨ IA procesando...");
+    }
 
     var cont = document.getElementById("chatIA");
     var div = document.createElement("div");
@@ -1655,6 +1670,7 @@ async function enviarChatStream() {
 
     } catch (error) {
         console.error("Error streaming:", error);
+        iaOcultarAnimacion();
         div.innerHTML = "❌ Error al conectar con la IA. <button onclick='enviarChatStream()' style='margin-left:8px;font-size:11px;'>Reintentar</button>";
     }
 
@@ -1665,19 +1681,37 @@ async function enviarChatStream() {
 function procesarAccionesIA(respuesta, seleccion, divBubble, contChat) {
     var editor = document.getElementById("editor");
 
-    var accionMatch = respuesta.match(/<!--JURIS_ACTION({.*?})-->/s);
+    var accionMatches = respuesta.match(/<!--JURIS_ACTION\{(.*?)\}-->/gs) || [];
     var respuestaLimpia = respuesta.replace(/<!--JURIS_ACTION\{.*?\}-->/g, "").trim();
     if (editor) {
         divBubble.innerHTML = "🤖 " + escapeHTML(respuestaLimpia);
     }
 
-    if (accionMatch) {
-        try {
-            var accion = JSON.parse(accionMatch[1]);
-            iaEjecutarAccion(accion, divBubble);
-        } catch (e) {
-            console.error("Error parseando JURIS_ACTION:", e);
+    if (accionMatches.length > 0) {
+        iaMostrarAnimacion("✨ IA editando documento...");
+        var idx = 0;
+        function ejecutarSiguiente() {
+            if (idx >= accionMatches.length) {
+                iaOcultarAnimacion();
+                return;
+            }
+            try {
+                var raw = accionMatches[idx].match(/<!--JURIS_ACTION\{(.*?)\}-->/s);
+                if (raw) {
+                    var accion = JSON.parse(raw[1]);
+                    iaEjecutarAccion(accion, divBubble);
+                }
+            } catch (e) {
+                console.error("Error parseando JURIS_ACTION:", e);
+            }
+            idx++;
+            if (idx < accionMatches.length) {
+                setTimeout(ejecutarSiguiente, 350);
+            } else {
+                iaOcultarAnimacion();
+            }
         }
+        ejecutarSiguiente();
     } else if (editor) {
         var esEdicion = seleccion && seleccion.texto;
         var tieneAccion = /\b(REPLACE_TEXT|UPDATE_ENTRY|INSERT_TEXT|DELETE_TEXT)\b/i.test(respuesta);
@@ -1755,6 +1789,7 @@ function procesarAccionesIA(respuesta, seleccion, divBubble, contChat) {
                 divBubble.appendChild(btnContainer);
             }
         }
+        iaOcultarAnimacion();
     }
 
     historialChat.push({ rol: "ia", contenido: respuestaLimpia || respuesta });
@@ -1774,6 +1809,10 @@ function iaEjecutarAccion(accion, divBubble) {
         iaAgregarTexto(accion.ubicacion || "", accion.referencia || "", accion.texto || "", divBubble);
     } else if (tipo === "eliminar_texto") {
         iaEliminarTexto(accion.buscar || "", divBubble);
+    } else if (tipo === "reescribir_documento") {
+        iaReescribirDocumento(accion.texto || "", divBubble);
+    } else if (tipo === "eliminar_campos_vacios") {
+        iaEliminarCamposVacios(divBubble);
     }
 }
 
@@ -1784,7 +1823,7 @@ function iaCrearDocumentoEnEditor(accion, divBubble) {
     var estadoAntes = iaGuardarEstado();
     if (estadoAntes) iaRegistrarOperacion(estadoAntes);
 
-    var texto = accion.texto || "";
+    var texto = normalizarSaltosDeLinea(accion.texto || "");
     var lineas = texto.split("\n");
     var html = lineas.map(function(l) {
         if (!l.trim()) return "<br>";
@@ -2020,6 +2059,7 @@ function iaEditarTexto(buscar, reemplazar, divBubble) {
 function iaAgregarTexto(ubicacion, referencia, texto, divBubble) {
     var editor = document.getElementById("editor");
     if (!editor || !texto) return;
+    texto = normalizarSaltosDeLinea(texto);
 
     var estadoAntes = iaGuardarEstado();
     if (estadoAntes) iaRegistrarOperacion(estadoAntes);
@@ -2117,6 +2157,112 @@ function iaEliminarTexto(buscar, divBubble) {
     var lbl = document.createElement("span");
     lbl.style.cssText = "color:" + (eliminado ? "#16a34a" : "#d97706") + "; font-size:11px; font-weight:600;";
     lbl.textContent = eliminado ? "✅ Texto eliminado del editor" : "⚠️ No se encontró el texto";
+    btns.appendChild(lbl);
+    divBubble.appendChild(btns);
+}
+
+function iaMostrarAnimacion(mensaje) {
+    var editor = document.getElementById("editor");
+    if (!editor) return;
+    var overlay = document.getElementById("ia-editing-overlay");
+    if (!overlay) {
+        overlay = document.createElement("div");
+        overlay.id = "ia-editing-overlay";
+        overlay.style.cssText = "position:absolute; top:0; left:0; right:0; bottom:0; background:rgba(255,255,255,0.75); z-index:50; display:flex; align-items:center; justify-content:center; pointer-events:none; transition:opacity 0.3s;";
+        var inner = document.createElement("div");
+        inner.style.cssText = "background:#fff; border:1px solid #818cf8; border-radius:10px; padding:12px 20px; font-size:14px; color:#4338ca; font-weight:600; box-shadow:0 4px 16px rgba(67,56,202,0.15); display:flex; align-items:center; gap:8px;";
+        inner.id = "ia-editing-inner";
+        overlay.appendChild(inner);
+        if (editor.style.position === "static" || !editor.style.position) {
+            editor.style.position = "relative";
+        }
+        editor.appendChild(overlay);
+    }
+    var inner = document.getElementById("ia-editing-inner");
+    if (inner) inner.textContent = mensaje || "✨ IA editando documento...";
+    overlay.style.opacity = "1";
+    overlay.style.display = "flex";
+}
+
+function iaOcultarAnimacion() {
+    var overlay = document.getElementById("ia-editing-overlay");
+    if (overlay) {
+        overlay.style.opacity = "0";
+        setTimeout(function() { overlay.style.display = "none"; }, 300);
+    }
+}
+
+function iaReescribirDocumento(nuevoTexto, divBubble) {
+    var editor = document.getElementById("editor");
+    if (!editor || !nuevoTexto) return;
+
+    var estadoAntes = iaGuardarEstado();
+    if (estadoAntes) iaRegistrarOperacion(estadoAntes);
+
+    var lineas = normalizarSaltosDeLinea(nuevoTexto).split("\n");
+    var html = lineas.map(function(l) {
+        if (!l.trim()) return "<br>";
+        return "<p>" + escapeHTML(l) + "</p>";
+    }).join("");
+    editor.innerHTML = html;
+
+    detectarYSincronizarEntries(true);
+    marcarCambio();
+    iaRegistrarOperacion(editor.innerHTML);
+
+    var btns = document.createElement("div");
+    btns.style.cssText = "margin-top:8px;";
+    var lbl = document.createElement("span");
+    lbl.style.cssText = "color:#16a34a; font-size:11px; font-weight:600;";
+    lbl.textContent = "✅ Documento reescrito completamente";
+    btns.appendChild(lbl);
+    divBubble.appendChild(btns);
+}
+
+function iaEliminarCamposVacios(divBubble) {
+    var editor = document.getElementById("editor");
+    if (!editor) return;
+
+    var estadoAntes = iaGuardarEstado();
+    if (estadoAntes) iaRegistrarOperacion(estadoAntes);
+
+    var entries = {};
+    if (configuracionActual && configuracionActual.dynamicEntries) {
+        entries = configuracionActual.dynamicEntries;
+    }
+
+    var eliminados = 0;
+    var spans = editor.querySelectorAll("span[data-key]");
+    spans.forEach(function(span) {
+        var key = span.getAttribute("data-key");
+        var entry = entries[key];
+        var val = (entry && entry.value != null) ? String(entry.value).trim() : "";
+        if (!val) {
+            var p = span.closest("p");
+            if (p) {
+                p.style.background = "#fee2e2";
+                setTimeout(function(el) {
+                    el.parentNode && el.parentNode.removeChild(el);
+                }.bind(null, p), 400);
+                eliminados++;
+            } else {
+                span.parentNode && span.parentNode.removeChild(span);
+                eliminados++;
+            }
+        }
+    });
+
+    setTimeout(function() {
+        iaRegistrarOperacion(editor.innerHTML);
+        detectarYSincronizarEntries();
+        marcarCambio();
+    }, 500);
+
+    var btns = document.createElement("div");
+    btns.style.cssText = "margin-top:8px;";
+    var lbl = document.createElement("span");
+    lbl.style.cssText = "color:" + (eliminados > 0 ? "#16a34a" : "#d97706") + "; font-size:11px; font-weight:600;";
+    lbl.textContent = eliminados > 0 ? "✅ " + eliminados + " campo(s) vacío(s) eliminados" : "⚠️ No se encontraron campos vacíos";
     btns.appendChild(lbl);
     divBubble.appendChild(btns);
 }
@@ -4137,6 +4283,7 @@ function editorAPlanoLimpio() {
 
 function textoPlanoToHtml(texto) {
     if (!texto) return "";
+    texto = normalizarSaltosDeLinea(texto);
     return texto
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
